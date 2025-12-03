@@ -1,0 +1,32 @@
+---
+# CloudStack 버전
+cloudstack_version: "4.19.3.0"
+
+# 기본 패키지 저장소
+cloudstack_repo_url: "http://download.cloudstack.org/ubuntu"
+
+# 네트워크 CIDR 설정
+# Public Network: 공인 IP, SNAT 가능한 대역
+public_network_cidr: "10.0.0.0/16"
+
+# Management Network: 내부 통신 전용 대역
+management_network_cidr: "10.5.0.0/24"
+
+# DNS 서버
+dns_servers:
+  - 168.126.63.1
+  - 8.8.8.8
+
+# NTP 설정
+ntp_servers:
+  - 0.pool.ntp.org
+  - 1.pool.ntp.org
+
+# 방화벽 설정
+configure_firewall: true
+
+# SELinux 설정 (CentOS/RHEL)
+selinux_state: permissive
+
+# SystemVM Template URL
+systemvm_template_url: "http://download.cloudstack.org/systemvm/4.19/systemvmtemplate-4.19.1-kvm.qcow2.bz2"

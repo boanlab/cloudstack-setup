@@ -1,0 +1,6 @@
+---
+# Management role defaults
+
+systemvm_template_url: "http://download.cloudstack.org/systemvm/4.19/systemvmtemplate-4.19.1-kvm.qcow2.bz2"
+force_template_install: false
+db_host: "localhost"

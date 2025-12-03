@@ -1,0 +1,150 @@
+---
+# KVM Host role - KVM 하이퍼바이저 및 CloudStack Agent 설정
+
+- name: Create CloudStack APT keyring directory
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Download CloudStack GPG key
+  get_url:
+    url: http://packages.shapeblue.com/release.asc
+    dest: /tmp/cloudstack-release.asc
+
+- name: Add CloudStack GPG key
+  shell: |
+    gpg --dearmor < /tmp/cloudstack-release.asc > /etc/apt/keyrings/cloudstack.gpg
+  args:
+    creates: /etc/apt/keyrings/cloudstack.gpg
+
+- name: Add CloudStack APT repository
+  apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/cloudstack.gpg] http://packages.shapeblue.com/cloudstack/upstream/debian/4.19 /"
+    state: present
+    filename: cloudstack
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+
+- name: Install qemu-kvm and CloudStack agent
+  apt:
+    name:
+      - qemu-kvm
+      - libvirt-daemon-system
+      - libvirt-clients
+      - bridge-utils
+      - "cloudstack-agent={{ cloudstack_version }}*"
+    state: present
+
+- name: Configure libvirtd arguments
+  lineinfile:
+    path: /etc/default/libvirtd
+    line: 'LIBVIRTD_ARGS="--listen"'
+    create: yes
+  notify: restart libvirtd
+
+- name: Configure libvirt for CloudStack
+  lineinfile:
+    path: /etc/libvirt/libvirtd.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^#?listen_tls', line: 'listen_tls=0' }
+    - { regexp: '^#?listen_tcp', line: 'listen_tcp=1' }
+    - { regexp: '^#?tcp_port', line: 'tcp_port = "16509"' }
+    - { regexp: '^#?mdns_adv', line: 'mdns_adv = 0' }
+    - { regexp: '^#?auth_tcp', line: 'auth_tcp = "none"' }
+  notify: restart libvirtd
+
+- name: Mask libvirtd socket units
+  systemd:
+    name: "{{ item }}"
+    masked: yes
+  loop:
+    - libvirtd.socket
+    - libvirtd-ro.socket
+    - libvirtd-admin.socket
+    - libvirtd-tls.socket
+    - libvirtd-tcp.socket
+  ignore_errors: yes
+
+- name: Ensure libvirtd is running
+  systemd:
+    name: libvirtd
+    state: started
+    enabled: yes
+
+- name: Set iptables FORWARD policy to ACCEPT
+  iptables:
+    chain: FORWARD
+    policy: ACCEPT
+  when: configure_iptables_forward | default(true)
+
+- name: Save iptables rules
+  shell: |
+    if command -v netfilter-persistent > /dev/null; then
+      netfilter-persistent save
+    elif command -v iptables-save > /dev/null; then
+      iptables-save > /etc/iptables/rules.v4
+    fi
+  when: configure_iptables_forward | default(true)
+  changed_when: false
+
+- name: Enable IP forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    state: present
+    reload: yes
+
+- name: Enable root login via SSH
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin'
+    line: 'PermitRootLogin yes'
+  notify: reload sshd
+  when: enable_root_ssh | default(true)
+
+- name: Ensure root password is set
+  user:
+    name: root
+    password: "{{ root_password_hash }}"
+  when: 
+    - enable_root_ssh | default(true)
+    - root_password_hash is defined
+  no_log: true
+
+- name: Create network bridge configuration
+  template:
+    src: netplan-bridge.yaml.j2
+    dest: /etc/netplan/01-cloudstack-network.yaml
+    mode: '0644'
+  when: configure_network_bridge | default(false)
+  notify: apply netplan
+
+- name: Install NFS client for storage
+  apt:
+    name: nfs-common
+    state: present
+
+- name: Disable AppArmor for libvirt (if present)
+  shell: |
+    if [ -f /etc/apparmor.d/usr.sbin.libvirtd ]; then
+      ln -sf /etc/apparmor.d/usr.sbin.libvirtd /etc/apparmor.d/disable/
+      apparmor_parser -R /etc/apparmor.d/usr.sbin.libvirtd
+    fi
+  args:
+    executable: /bin/bash
+  ignore_errors: yes
+  changed_when: false
+
+- name: Display KVM host setup completion message
+  debug:
+    msg:
+      - "KVM Host 설정이 완료되었습니다!"
+      - "CloudStack Management Server에서 이 호스트를 추가하세요."
+      - "Host IP: {{ ansible_default_ipv4.address }}"
+      - "Management Bridge: cloudbr0"
+      - "Guest/Public Bridge: cloudbr1"

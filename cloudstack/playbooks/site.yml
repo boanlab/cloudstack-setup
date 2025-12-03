@@ -1,0 +1,17 @@
+---
+# 메인 플레이북 - CloudStack 전체 설치
+- name: CloudStack Infrastructure Setup
+  hosts: all
+  gather_facts: yes
+  become: yes
+  
+  tasks:
+    - name: Check connectivity
+      ping:
+
+- import_playbook: 00-setup-network.yml
+- import_playbook: 01-prepare-common.yml
+- import_playbook: 02-setup-nfs.yml
+- import_playbook: 03-setup-database.yml
+- import_playbook: 04-setup-management.yml
+- import_playbook: 05-setup-kvm-hosts.yml

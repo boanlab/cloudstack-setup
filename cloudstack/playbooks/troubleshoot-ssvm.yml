@@ -1,0 +1,49 @@
+---
+# Troubleshooting playbook - Secondary Storage VM 문제 해결
+
+- name: Fix Secondary Storage VM Issues
+  hosts: management
+  become: yes
+  
+  tasks:
+    - name: Update CloudStack configuration for SystemVM cert
+      shell: |
+        mysql -u root -p'{{ mysql_root_password }}' cloud << 'EOF'
+        UPDATE configuration 
+        SET value='true' 
+        WHERE name='ca.framework.cert.systemvm.allow.host.ip';
+        
+        INSERT INTO configuration (category, instance, component, name, value, description, default_value, scope, is_dynamic, group_id, subgroup_id)
+        SELECT 'Advanced', 'DEFAULT', 'RootCAProvider', 'ca.plugin.root.auth.strictness', 'false', 
+        'When set to false, it will relax the certificate ownership verification during SSL handshake.', 
+        'true', 'Global', 1, 1, 39
+        FROM DUAL
+        WHERE NOT EXISTS (SELECT * FROM configuration WHERE name='ca.plugin.root.auth.strictness');
+        
+        UPDATE configuration 
+        SET value='false' 
+        WHERE name='ca.plugin.root.auth.strictness';
+        EOF
+      no_log: true
+      ignore_errors: yes
+
+    - name: Restart CloudStack management
+      systemd:
+        name: cloudstack-management
+        state: restarted
+
+    - name: Wait for management server to be ready
+      wait_for:
+        port: 8080
+        delay: 10
+        timeout: 300
+
+    - name: Display instructions
+      debug:
+        msg:
+          - "Secondary Storage VM 설정이 업데이트되었습니다."
+          - "CloudStack UI에서 확인하세요."
+          - "추가로 UI에서 직접 설정을 확인하고 싶다면:"
+          - "1. Global Settings 이동"
+          - "2. ca.framework.cert.systemvm.allow.host.ip = true 확인"
+          - "3. ca.plugin.root.auth.strictness = false 확인"

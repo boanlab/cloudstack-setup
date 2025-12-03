@@ -1,0 +1,67 @@
+---
+# Database role - MySQL 설치 및 설정
+
+- name: Install MySQL server
+  apt:
+    name: mysql-server
+    state: present
+
+- name: Install Python MySQL library
+  apt:
+    name: python3-pymysql
+    state: present
+
+- name: Configure MySQL for CloudStack
+  blockinfile:
+    path: /etc/mysql/mysql.conf.d/mysqld.cnf
+    block: |
+      server_id = 1
+      sql-mode="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION,ERROR_FOR_DIVISION_BY_ZERO,NO_ZERO_DATE,NO_ZERO_IN_DATE,NO_ENGINE_SUBSTITUTION"
+      innodb_rollback_on_timeout=1
+      innodb_lock_wait_timeout=600
+      max_connections={{ mysql_max_connections | default(1000) }}
+      log-bin=mysql-bin
+      binlog-format = 'ROW'
+    marker: "# {mark} CLOUDSTACK MANAGED BLOCK"
+  notify: restart mysql
+
+- name: Ensure MySQL is running
+  systemd:
+    name: mysql
+    state: started
+    enabled: yes
+
+- name: Set MySQL root password
+  mysql_user:
+    name: root
+    password: "{{ mysql_root_password }}"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    login_user: root
+    login_password: ""
+    host: localhost
+    plugin: mysql_native_password
+    state: present
+  ignore_errors: yes
+  no_log: true
+
+- name: Create .my.cnf file for root
+  template:
+    src: root-my.cnf.j2
+    dest: /root/.my.cnf
+    mode: '0600'
+  no_log: true
+
+- name: Remove anonymous MySQL users
+  mysql_user:
+    name: ''
+    host_all: yes
+    state: absent
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  ignore_errors: yes
+
+- name: Remove MySQL test database
+  mysql_db:
+    name: test
+    state: absent
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  ignore_errors: yes

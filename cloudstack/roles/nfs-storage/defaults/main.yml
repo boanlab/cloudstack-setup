@@ -1,0 +1,7 @@
+---
+# NFS Storage role defaults
+
+storage_device: /dev/sdb
+nfs_export_path: /export
+nfs_primary_path: /export/primary
+nfs_secondary_path: /export/secondary

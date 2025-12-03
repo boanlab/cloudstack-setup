@@ -1,0 +1,17 @@
+---
+# Management Server 설정
+management_server_ip: "{{ ansible_host }}"
+
+# 데이터베이스 연결 정보
+db_host: "{{ groups['database'][0] }}"
+db_port: 3306
+
+# NFS 서버 설정
+nfs_server: "{{ groups['nfs-storage'][0] }}"
+
+# CloudStack 데이터베이스 비밀번호
+cloudstack_db_password: "{{ vault_cloudstack_db_password }}"
+mysql_root_password: "{{ vault_mysql_root_password }}"
+
+# CloudStack UI 설정
+cloudstack_management_memory: 4096

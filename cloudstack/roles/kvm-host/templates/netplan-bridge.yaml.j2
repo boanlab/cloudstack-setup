@@ -1,0 +1,26 @@
+network:
+  version: 2
+  ethernets:
+    {{ public_interface }}:
+      dhcp4: no
+    {{ management_interface | default('eno2') }}:
+      dhcp4: no
+  bridges:
+    cloudbr0:  # Management Network
+      interfaces: [{{ management_interface | default('eno2') }}]
+      addresses: [{{ management_ip }}/{{ management_netmask | default('24') }}]
+      parameters:
+        stp: false
+        forward-delay: 0
+
+    cloudbr1:  # Guest Network, Public Network
+      interfaces: [{{ public_interface }}]
+      addresses: [{{ public_ip }}/{{ public_netmask | default('16') }}]
+      nameservers:
+        addresses: {{ dns_servers | default(['168.126.63.1', '8.8.8.8']) | to_json }}
+      routes:
+        - to: default
+          via: {{ default_gateway }}
+      parameters:
+        stp: false
+        forward-delay: 0

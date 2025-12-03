@@ -1,0 +1,7 @@
+---
+# 공통 준비 작업
+- name: Prepare All Hosts
+  hosts: cloudstack
+  become: yes
+  roles:
+    - common

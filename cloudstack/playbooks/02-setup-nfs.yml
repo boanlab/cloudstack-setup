@@ -1,0 +1,7 @@
+---
+# NFS 스토리지 설정
+- name: Setup NFS Storage
+  hosts: nfs-storage
+  become: yes
+  roles:
+    - nfs-storage

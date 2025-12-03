@@ -1,0 +1,20 @@
+---
+# KVM Host role defaults
+
+# 네트워크 브리지 자동 설정 여부
+configure_network_bridge: false
+
+# 네트워크 인터페이스
+public_interface: eno1
+management_interface: eno2
+
+# DNS 서버
+dns_servers:
+  - 168.126.63.1
+  - 8.8.8.8
+
+# iptables FORWARD 정책 설정
+configure_iptables_forward: true
+
+# Root SSH 로그인 활성화
+enable_root_ssh: true

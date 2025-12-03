@@ -1,0 +1,18 @@
+---
+# Handler for KVM host role
+
+- name: restart libvirtd
+  systemd:
+    name: libvirtd
+    state: restarted
+
+- name: reload sshd
+  systemd:
+    name: sshd
+    state: reloaded
+
+- name: apply netplan
+  command: netplan apply
+  async: 30
+  poll: 0
+  ignore_errors: yes

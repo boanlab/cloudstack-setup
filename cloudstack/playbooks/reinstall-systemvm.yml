@@ -1,0 +1,58 @@
+---
+# Reinstall SystemVM Template
+
+- name: Reinstall SystemVM Template
+  hosts: management
+  become: yes
+  
+  vars_prompt:
+    - name: confirm_reinstall
+      prompt: "SystemVM 템플릿을 재설치하시겠습니까? (yes/no)"
+      private: no
+  
+  tasks:
+    - name: Validate confirmation
+      fail:
+        msg: "설치가 취소되었습니다."
+      when: confirm_reinstall != "yes"
+
+    - name: Ensure secondary storage is mounted
+      mount:
+        path: /mnt/secondary
+        src: "{{ nfs_server }}:/export/secondary"
+        fstype: nfs
+        opts: defaults
+        state: mounted
+
+    - name: Remove existing template directory
+      file:
+        path: /mnt/secondary/template/tmpl/1/3
+        state: absent
+
+    - name: Install SystemVM template
+      shell: |
+        /usr/share/cloudstack-common/scripts/storage/secondary/cloud-install-sys-tmplt \
+          -m /mnt/secondary \
+          -u {{ systemvm_template_url }} \
+          -h kvm \
+          -s '{{ mysql_root_password }}' \
+          -t 3 \
+          -F
+      no_log: true
+
+    - name: Verify template installation
+      stat:
+        path: /mnt/secondary/template/tmpl/1/3
+      register: template_check
+
+    - name: Display result
+      debug:
+        msg: 
+          - "템플릿 설치 상태: {{ 'Success' if template_check.stat.exists else 'Failed' }}"
+          - "경로: /mnt/secondary/template/tmpl/1/3"
+
+    - name: Restart CloudStack management
+      systemd:
+        name: cloudstack-management
+        state: restarted
+      when: template_check.stat.exists

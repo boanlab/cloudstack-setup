@@ -1,0 +1,125 @@
+---
+# Management role - CloudStack Management Server 설치
+
+- name: Install Java (OpenJDK 11)
+  apt:
+    name: openjdk-11-jre-headless
+    state: present
+
+- name: Create CloudStack APT keyring directory
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Download CloudStack GPG key
+  get_url:
+    url: http://packages.shapeblue.com/release.asc
+    dest: /tmp/cloudstack-release.asc
+
+- name: Add CloudStack GPG key
+  shell: |
+    gpg --dearmor < /tmp/cloudstack-release.asc > /etc/apt/keyrings/cloudstack.gpg
+  args:
+    creates: /etc/apt/keyrings/cloudstack.gpg
+
+- name: Add CloudStack APT repository
+  apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/cloudstack.gpg] http://packages.shapeblue.com/cloudstack/upstream/debian/4.19 /"
+    state: present
+    filename: cloudstack
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+
+- name: Install CloudStack management and usage packages
+  apt:
+    name:
+      - "cloudstack-management={{ cloudstack_version }}*"
+      - "cloudstack-usage={{ cloudstack_version }}*"
+    state: present
+
+- name: Create secondary storage mount point
+  file:
+    path: /mnt/secondary
+    state: directory
+    mode: '0755'
+
+- name: Mount NFS secondary storage
+  mount:
+    path: /mnt/secondary
+    src: "{{ nfs_server }}:/export/secondary"
+    fstype: nfs
+    opts: defaults
+    state: mounted
+  when: nfs_server is defined
+
+- name: Check if SystemVM template is already installed
+  stat:
+    path: /mnt/secondary/template/tmpl/1
+  register: systemvm_template
+
+- name: Install SystemVM template
+  shell: |
+    /usr/share/cloudstack-common/scripts/storage/secondary/cloud-install-sys-tmplt \
+      -m /mnt/secondary \
+      -u {{ systemvm_template_url }} \
+      -h kvm \
+      -s '{{ mysql_root_password }}' \
+      -t 3 \
+      -F
+  args:
+    creates: /mnt/secondary/template/tmpl/1/3
+  when: 
+    - not systemvm_template.stat.exists or force_template_install | default(false)
+    - systemvm_template_url is defined
+  no_log: true
+
+- name: Check if CloudStack database is initialized
+  stat:
+    path: /var/lib/cloudstack-management/.dbsetup
+  register: db_setup
+
+- name: Initialize CloudStack database
+  shell: |
+    cloudstack-setup-databases cloud:{{ cloudstack_db_password }}@{{ db_host }} \
+      --deploy-as=root:{{ mysql_root_password }} \
+      -i {{ management_server_ip }}
+  args:
+    creates: /var/lib/cloudstack-management/.dbsetup
+  when: not db_setup.stat.exists
+  no_log: true
+  register: db_init
+
+- name: Create database setup marker
+  file:
+    path: /var/lib/cloudstack-management/.dbsetup
+    state: touch
+    mode: '0644'
+  when: db_init.changed
+
+- name: Setup CloudStack management server
+  command: cloudstack-setup-management
+  args:
+    creates: /etc/cloudstack/management/server.properties
+
+- name: Ensure CloudStack management is running
+  systemd:
+    name: cloudstack-management
+    state: started
+    enabled: yes
+
+- name: Wait for CloudStack management to be ready
+  wait_for:
+    port: 8080
+    delay: 10
+    timeout: 300
+
+- name: Display CloudStack UI access information
+  debug:
+    msg:
+      - "CloudStack Management Server is ready!"
+      - "Web UI: http://{{ management_server_ip }}:8080/client"
+      - "Default credentials: admin / password"
+      - "Check logs: tail -f /var/log/cloudstack/management/management-server.log"

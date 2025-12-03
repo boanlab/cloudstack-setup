@@ -1,0 +1,10 @@
+---
+# Role: nfs-storage - NFS 스토리지 서버
+dependencies:
+  - role: common
+
+galaxy_info:
+  author: CloudStack Team
+  description: NFS storage server for CloudStack
+  license: Apache-2.0
+  min_ansible_version: "2.9"

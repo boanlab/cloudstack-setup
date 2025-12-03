@@ -1,0 +1,10 @@
+---
+# Role: kvm-host - KVM 하이퍼바이저 호스트
+dependencies:
+  - role: common
+
+galaxy_info:
+  author: CloudStack Team
+  description: KVM hypervisor host configuration
+  license: Apache-2.0
+  min_ansible_version: "2.9"

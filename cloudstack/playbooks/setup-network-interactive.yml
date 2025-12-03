@@ -1,0 +1,259 @@
+---
+# 네트워크 설정 자동 감지 및 설정 플레이북
+# 인터페이스를 자동으로 감지하고 인터랙티브하게 설정
+
+- name: Interactive Network Setup for KVM Hosts
+  hosts: kvm-hosts
+  become: yes
+  gather_facts: yes
+  serial: 1  # 한 번에 한 호스트씩 처리
+  
+  tasks:
+    - name: Gather all network interfaces
+      shell: ip -o link show | awk -F': ' '{print $2}' | grep -v '^lo$\|^virbr\|^docker\|^br-'
+      register: all_interfaces
+      changed_when: false
+
+    - name: Get detailed interface information
+      shell: |
+        echo "=== 네트워크 인터페이스 정보 ==="
+        for iface in $(ip -o link show | awk -F': ' '{print $2}' | grep -v '^lo$\|^virbr\|^docker\|^br-'); do
+          echo ""
+          echo "Interface: $iface"
+          
+          # MAC Address
+          mac=$(ip link show $iface | grep -oP '(?<=link/ether\s)[0-9a-f:]+' || echo "N/A")
+          echo "  MAC: $mac"
+          
+          # IP Address
+          ip=$(ip -4 addr show $iface | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+' || echo "No IP")
+          echo "  IP: $ip"
+          
+          # State
+          state=$(ip link show $iface | grep -oP '(?<=state\s)\w+' || echo "UNKNOWN")
+          echo "  State: $state"
+          
+          # Speed (if available)
+          speed=$(ethtool $iface 2>/dev/null | grep "Speed:" | awk '{print $2}' || echo "N/A")
+          echo "  Speed: $speed"
+        done
+      register: interface_details
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Display interface information
+      debug:
+        msg: "{{ interface_details.stdout_lines }}"
+
+    - name: Display current Ansible connection info
+      debug:
+        msg:
+          - "=== 현재 연결 정보 ==="
+          - "Hostname: {{ ansible_hostname }}"
+          - "Connection IP: {{ ansible_default_ipv4.address | default('N/A') }}"
+          - "Connection Interface: {{ ansible_default_ipv4.interface | default('N/A') }}"
+
+    - block:
+        - name: Prompt for Public Network interface
+          pause:
+            prompt: |
+              
+              ╔════════════════════════════════════════════════════════════╗
+              ║  Public Network 인터페이스 선택                              ║
+              ╠════════════════════════════════════════════════════════════╣
+              ║  용도: 공인 IP, 외부 접근, SNAT 가능                         ║
+              ║  브리지: cloudbr1                                           ║
+              ╚════════════════════════════════════════════════════════════╝
+              
+              사용 가능한 인터페이스: {{ all_interfaces.stdout_lines | join(', ') }}
+              
+              Public Network로 사용할 인터페이스 이름을 입력하세요
+          register: public_interface_input
+
+        - name: Validate Public interface
+          fail:
+            msg: "인터페이스 '{{ public_interface_input.user_input }}'이(가) 존재하지 않습니다."
+          when: public_interface_input.user_input not in all_interfaces.stdout
+
+        - name: Prompt for Public Network IP
+          pause:
+            prompt: |
+              
+              Public Network IP 주소를 입력하세요 (예: 10.0.0.12)
+          register: public_ip_input
+
+        - name: Prompt for Public Network Netmask
+          pause:
+            prompt: |
+              
+              Public Network Netmask를 입력하세요 (예: 16 또는 24)
+          register: public_netmask_input
+
+        - name: Prompt for Default Gateway
+          pause:
+            prompt: |
+              
+              Default Gateway를 입력하세요 (예: 10.0.0.1)
+          register: gateway_input
+
+        - name: Prompt for Management Network interface
+          pause:
+            prompt: |
+              
+              ╔════════════════════════════════════════════════════════════╗
+              ║  Management Network 인터페이스 선택                          ║
+              ╠════════════════════════════════════════════════════════════╣
+              ║  용도: 내부 통신 전용 (CloudStack Management)                ║
+              ║  브리지: cloudbr0                                           ║
+              ╚════════════════════════════════════════════════════════════╝
+              
+              사용 가능한 인터페이스: {{ all_interfaces.stdout_lines | join(', ') }}
+              
+              Management Network로 사용할 인터페이스 이름을 입력하세요
+          register: management_interface_input
+
+        - name: Validate Management interface
+          fail:
+            msg: "인터페이스 '{{ management_interface_input.user_input }}'이(가) 존재하지 않습니다."
+          when: management_interface_input.user_input not in all_interfaces.stdout
+
+        - name: Check for interface conflict
+          fail:
+            msg: "Public과 Management 인터페이스는 달라야 합니다!"
+          when: public_interface_input.user_input == management_interface_input.user_input
+
+        - name: Prompt for Management Network IP
+          pause:
+            prompt: |
+              
+              Management Network IP 주소를 입력하세요 (예: 10.5.0.12)
+          register: management_ip_input
+
+        - name: Prompt for Management Network Netmask
+          pause:
+            prompt: |
+              
+              Management Network Netmask를 입력하세요 (예: 24)
+          register: management_netmask_input
+
+        - name: Set network variables
+          set_fact:
+            public_interface: "{{ public_interface_input.user_input }}"
+            management_interface: "{{ management_interface_input.user_input }}"
+            public_ip: "{{ public_ip_input.user_input }}"
+            public_netmask: "{{ public_netmask_input.user_input }}"
+            management_ip: "{{ management_ip_input.user_input }}"
+            management_netmask: "{{ management_netmask_input.user_input }}"
+            default_gateway: "{{ gateway_input.user_input }}"
+
+        - name: Display configuration summary
+          debug:
+            msg:
+              - ""
+              - "╔════════════════════════════════════════════════════════════╗"
+              - "║           네트워크 설정 요약                                  ║"
+              - "╠════════════════════════════════════════════════════════════╣"
+              - "║  Public Network (cloudbr1) - 공인 IP, 외부 접근              ║"
+              - "║    Interface: {{ public_interface }}"
+              - "║    IP: {{ public_ip }}/{{ public_netmask }}"
+              - "║    Gateway: {{ default_gateway }}"
+              - "║                                                            ║"
+              - "║  Management Network (cloudbr0) - 내부 통신                  ║"
+              - "║    Interface: {{ management_interface }}"
+              - "║    IP: {{ management_ip }}/{{ management_netmask }}"
+              - "╚════════════════════════════════════════════════════════════╝"
+
+        - name: Final confirmation
+          pause:
+            prompt: |
+              
+              ⚠️  경고: 이 설정을 적용하면 네트워크 연결이 끊길 수 있습니다!
+              
+              적용하시겠습니까? (yes/no)
+          register: final_confirm
+
+        - name: Validate final confirmation
+          fail:
+            msg: "네트워크 설정이 취소되었습니다."
+          when: final_confirm.user_input != "yes"
+
+        - name: Save configuration to host_vars
+          delegate_to: localhost
+          become: no
+          copy:
+            content: |
+              ---
+              # Auto-generated network configuration
+              # Generated on: {{ ansible_date_time.iso8601 }}
+              
+              # Public Network (cloudbr1) - 공인 IP, 외부 접근
+              public_interface: {{ public_interface }}
+              public_ip: {{ public_ip }}
+              public_netmask: {{ public_netmask }}
+              default_gateway: {{ default_gateway }}
+              
+              # Management Network (cloudbr0) - 내부 통신
+              management_interface: {{ management_interface }}
+              management_ip: {{ management_ip }}
+              management_netmask: {{ management_netmask }}
+              
+              # Network bridge configuration
+              configure_network_bridge: true
+            dest: "host_vars/{{ inventory_hostname }}.yml"
+            mode: '0644'
+
+        - name: Backup existing netplan configuration
+          shell: |
+            if ls /etc/netplan/*.yaml 1> /dev/null 2>&1; then
+              cp /etc/netplan/*.yaml /etc/netplan/backup-$(date +%Y%m%d-%H%M%S).yaml
+            fi
+          ignore_errors: yes
+
+        - name: Create network bridge configuration
+          template:
+            src: ../roles/kvm-host/templates/netplan-bridge.yaml.j2
+            dest: /etc/netplan/01-cloudstack-network.yaml
+            mode: '0644'
+
+        - name: Test netplan configuration
+          command: netplan generate
+          register: netplan_test
+          failed_when: netplan_test.rc != 0
+
+        - name: Display pre-apply warning
+          debug:
+            msg:
+              - ""
+              - "⚠️⚠️⚠️  최종 경고  ⚠️⚠️⚠️"
+              - "5초 후 네트워크 설정이 적용됩니다."
+              - "SSH 연결이 끊길 수 있습니다!"
+              - ""
+              - "재연결 시 사용할 IP 주소:"
+              - "  - Management: {{ management_ip }}"
+              - "  - Public: {{ public_ip }}"
+
+        - name: Wait before applying
+          pause:
+            seconds: 5
+
+        - name: Apply netplan configuration
+          command: netplan apply
+          async: 30
+          poll: 0
+          ignore_errors: yes
+
+        - name: Wait for network to stabilize
+          pause:
+            seconds: 20
+
+      when: public_interface is not defined or management_interface is not defined
+
+    - name: Verify network bridges (may fail if disconnected)
+      shell: ip addr show cloudbr0 && ip addr show cloudbr1
+      register: bridge_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Display result
+      debug:
+        msg: "{{ bridge_check.stdout_lines if bridge_check.rc == 0 else ['네트워크가 재설정되었습니다. 새 IP로 재연결하세요.'] }}"

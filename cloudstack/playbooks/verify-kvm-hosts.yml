@@ -1,0 +1,89 @@
+---
+# KVM 호스트 확인 플레이북
+# KVM 호스트가 CloudStack에 추가될 준비가 되었는지 확인
+
+- name: Verify KVM Host Readiness
+  hosts: kvm-hosts
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Check if CloudStack agent is installed
+      command: dpkg -l cloudstack-agent
+      register: agent_installed
+      failed_when: false
+      changed_when: false
+
+    - name: Check if qemu-kvm is installed
+      command: dpkg -l qemu-kvm
+      register: qemu_installed
+      failed_when: false
+      changed_when: false
+
+    - name: Check libvirtd status
+      systemd:
+        name: libvirtd
+      register: libvirtd_status
+      failed_when: false
+
+    - name: Check libvirtd TCP listening
+      shell: netstat -tulpn | grep 16509 || ss -tulpn | grep 16509
+      register: libvirtd_tcp
+      failed_when: false
+      changed_when: false
+
+    - name: Check network bridges
+      shell: ip addr show cloudbr0 && ip addr show cloudbr1
+      register: bridge_check
+      failed_when: false
+      changed_when: false
+
+    - name: Check iptables FORWARD policy
+      shell: iptables -L FORWARD -n | head -1
+      register: iptables_forward
+      failed_when: false
+      changed_when: false
+
+    - name: Check IP forwarding
+      shell: sysctl net.ipv4.ip_forward
+      register: ip_forward
+      changed_when: false
+
+    - name: Check root SSH access
+      shell: grep "^PermitRootLogin" /etc/ssh/sshd_config
+      register: root_ssh
+      failed_when: false
+      changed_when: false
+
+    - name: Check NFS client
+      command: dpkg -l nfs-common
+      register: nfs_client
+      failed_when: false
+      changed_when: false
+
+    - name: Display verification results
+      debug:
+        msg:
+          - "=== KVM Host Readiness Check ==="
+          - "Hostname: {{ ansible_hostname }}"
+          - "IP Address: {{ ansible_default_ipv4.address }}"
+          - ""
+          - "CloudStack Agent: {{ 'OK' if agent_installed.rc == 0 else 'NOT INSTALLED' }}"
+          - "QEMU-KVM: {{ 'OK' if qemu_installed.rc == 0 else 'NOT INSTALLED' }}"
+          - "Libvirtd Running: {{ 'OK' if libvirtd_status.status.ActiveState == 'active' else 'NOT RUNNING' }}"
+          - "Libvirtd TCP (16509): {{ 'OK' if libvirtd_tcp.rc == 0 else 'NOT LISTENING' }}"
+          - "Network Bridges: {{ 'OK' if bridge_check.rc == 0 else 'NOT CONFIGURED' }}"
+          - "IPTables FORWARD: {{ iptables_forward.stdout_lines[0] if iptables_forward.rc == 0 else 'FAILED TO CHECK' }}"
+          - "IP Forwarding: {{ ip_forward.stdout }}"
+          - "Root SSH: {{ root_ssh.stdout if root_ssh.rc == 0 else 'NOT CONFIGURED' }}"
+          - "NFS Client: {{ 'OK' if nfs_client.rc == 0 else 'NOT INSTALLED' }}"
+          - ""
+          - "{% if agent_installed.rc == 0 and qemu_installed.rc == 0 and libvirtd_status.status.ActiveState == 'active' and libvirtd_tcp.rc == 0 %}✅ 이 호스트는 CloudStack에 추가될 준비가 되었습니다!{% else %}⚠️  일부 설정이 누락되었습니다. 위 내용을 확인하세요.{% endif %}"
+
+    - name: Check if all requirements are met
+      set_fact:
+        host_ready: "{{ agent_installed.rc == 0 and qemu_installed.rc == 0 and libvirtd_status.status.ActiveState == 'active' and libvirtd_tcp.rc == 0 }}"
+
+    - name: Summary
+      debug:
+        msg: "Host {{ ansible_hostname }} is {{ 'READY' if host_ready else 'NOT READY' }} for CloudStack"

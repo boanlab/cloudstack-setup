@@ -1,0 +1,7 @@
+---
+# Management Server 설정
+- name: Setup CloudStack Management Server
+  hosts: management
+  become: yes
+  roles:
+    - management

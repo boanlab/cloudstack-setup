@@ -1,0 +1,22 @@
+[management]
+cloudstack-mgmt ansible_host=192.168.1.10
+
+[database]
+cloudstack-db ansible_host=192.168.1.11
+
+[kvm-hosts]
+kvm-host-01 ansible_host=192.168.1.21
+kvm-host-02 ansible_host=192.168.1.22
+
+[nfs-storage]
+nfs-server ansible_host=192.168.1.30
+
+[cloudstack:children]
+management
+database
+kvm-hosts
+nfs-storage
+
+[cloudstack:vars]
+ansible_user=root
+ansible_python_interpreter=/usr/bin/python3

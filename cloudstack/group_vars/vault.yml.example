@@ -1,0 +1,7 @@
+---
+# Vault 암호화된 변수들
+# 이 파일을 암호화하려면: ansible-vault encrypt group_vars/vault.yml
+# 편집하려면: ansible-vault edit group_vars/vault.yml
+
+vault_mysql_root_password: "ChangeMe123!"
+vault_cloudstack_db_password: "ChangeMe456!"

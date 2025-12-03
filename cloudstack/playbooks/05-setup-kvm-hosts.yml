@@ -1,0 +1,7 @@
+---
+# KVM 호스트 설정
+- name: Setup KVM Hypervisor Hosts
+  hosts: kvm-hosts
+  become: yes
+  roles:
+    - kvm-host

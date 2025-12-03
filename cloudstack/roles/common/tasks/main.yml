@@ -1,0 +1,41 @@
+---
+# Common role - 모든 호스트에 적용되는 기본 설정
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+
+- name: Install basic packages
+  apt:
+    name:
+      - openntpd
+      - openssh-server
+      - sudo
+      - vim
+      - htop
+      - tar
+      - bridge-utils
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Install intel-microcode (Intel CPUs only)
+  apt:
+    name: intel-microcode
+    state: present
+  when: 
+    - ansible_os_family == "Debian"
+    - ansible_processor | select('search', 'Intel') | list | length > 0
+  ignore_errors: yes
+
+- name: Ensure NTP is running
+  systemd:
+    name: openntpd
+    state: started
+    enabled: yes
+  when: ansible_os_family == "Debian"
+
+- name: Set timezone to Asia/Seoul
+  timezone:
+    name: Asia/Seoul

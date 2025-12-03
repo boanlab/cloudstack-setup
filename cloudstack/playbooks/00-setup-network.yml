@@ -1,0 +1,360 @@
+---
+# 전체 노드 네트워크 자동 설정 플레이북
+# Public Network와 Management Network CIDR을 기반으로 인터페이스를 자동 감지하고 브리지 생성
+#
+# 사용법:
+#   ansible-playbook -i inventory/hosts playbooks/00-setup-network.yml
+
+- name: Automatic Network Bridge Setup for All Nodes
+  hosts: all
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Check if network CIDRs are defined
+      fail:
+        msg: |
+          네트워크 CIDR이 정의되지 않았습니다!
+          group_vars/all.yml에 다음 변수를 설정하세요:
+            - public_network_cidr (예: 10.0.0.0/16)
+            - management_network_cidr (예: 10.5.0.0/24)
+      when: public_network_cidr is not defined or management_network_cidr is not defined
+
+    - name: Display network configuration
+      debug:
+        msg:
+          - "=== 네트워크 설정 정보 ==="
+          - "Public Network CIDR: {{ public_network_cidr }}"
+          - "Management Network CIDR: {{ management_network_cidr }}"
+          - ""
+          - "자동으로 해당 대역의 인터페이스를 찾아 브리지를 생성합니다."
+
+    - name: Get all network interfaces with IP addresses
+      shell: |
+        ip -4 -o addr show | grep -v '127.0.0.1' | awk '{print $2":"$4}' | sort -u
+      register: interfaces_with_ips
+      changed_when: false
+
+    - name: Display current interface IPs
+      debug:
+        msg:
+          - "=== 현재 인터페이스 정보 ==="
+          - "{{ interfaces_with_ips.stdout_lines }}"
+
+    - name: Find Public Network interface
+      shell: |
+        for line in $(ip -4 -o addr show | grep -v '127.0.0.1' | awk '{print $2":"$4}'); do
+          iface=$(echo $line | cut -d: -f1)
+          ip_cidr=$(echo $line | cut -d: -f2)
+          ip_addr=$(echo $ip_cidr | cut -d/ -f1)
+          
+          # Python을 사용하여 IP가 CIDR에 속하는지 확인
+          if python3 -c "import ipaddress; import sys; sys.exit(0 if ipaddress.ip_address('$ip_addr') in ipaddress.ip_network('{{ public_network_cidr }}', strict=False) else 1)" 2>/dev/null; then
+            echo "$iface"
+            exit 0
+          fi
+        done
+        exit 1
+      register: public_interface_detect
+      failed_when: false
+      changed_when: false
+
+    - name: Find Management Network interface
+      shell: |
+        for line in $(ip -4 -o addr show | grep -v '127.0.0.1' | awk '{print $2":"$4}'); do
+          iface=$(echo $line | cut -d: -f1)
+          ip_cidr=$(echo $line | cut -d: -f2)
+          ip_addr=$(echo $ip_cidr | cut -d/ -f1)
+          
+          # Python을 사용하여 IP가 CIDR에 속하는지 확인
+          if python3 -c "import ipaddress; import sys; sys.exit(0 if ipaddress.ip_address('$ip_addr') in ipaddress.ip_network('{{ management_network_cidr }}', strict=False) else 1)" 2>/dev/null; then
+            echo "$iface"
+            exit 0
+          fi
+        done
+        exit 1
+      register: management_interface_detect
+      failed_when: false
+      changed_when: false
+
+    - name: Set detected interface variables
+      set_fact:
+        detected_public_interface: "{{ public_interface_detect.stdout | trim }}"
+        detected_management_interface: "{{ management_interface_detect.stdout | trim }}"
+      when: 
+        - public_interface_detect.rc == 0
+        - management_interface_detect.rc == 0
+
+    - name: Get current IP information for detected interfaces
+      shell: |
+        public_info=$(ip -4 addr show {{ detected_public_interface }} | grep 'inet ' | awk '{print $2}')
+        mgmt_info=$(ip -4 addr show {{ detected_management_interface }} | grep 'inet ' | awk '{print $2}')
+        public_ip=$(echo $public_info | cut -d/ -f1)
+        public_mask=$(echo $public_info | cut -d/ -f2)
+        mgmt_ip=$(echo $mgmt_info | cut -d/ -f1)
+        mgmt_mask=$(echo $mgmt_info | cut -d/ -f2)
+        
+        echo "PUBLIC_IP=$public_ip"
+        echo "PUBLIC_MASK=$public_mask"
+        echo "MGMT_IP=$mgmt_ip"
+        echo "MGMT_MASK=$mgmt_mask"
+      register: ip_info
+      when: 
+        - detected_public_interface is defined
+        - detected_management_interface is defined
+      changed_when: false
+
+    - name: Parse IP information
+      set_fact:
+        detected_public_ip: "{{ ip_info.stdout_lines | select('match', '^PUBLIC_IP=') | first | regex_replace('^PUBLIC_IP=', '') }}"
+        detected_public_netmask: "{{ ip_info.stdout_lines | select('match', '^PUBLIC_MASK=') | first | regex_replace('^PUBLIC_MASK=', '') }}"
+        detected_management_ip: "{{ ip_info.stdout_lines | select('match', '^MGMT_IP=') | first | regex_replace('^MGMT_IP=', '') }}"
+        detected_management_netmask: "{{ ip_info.stdout_lines | select('match', '^MGMT_MASK=') | first | regex_replace('^MGMT_MASK=', '') }}"
+      when: ip_info.stdout_lines is defined
+
+    - name: Get default gateway
+      shell: ip route | grep default | awk '{print $3}' | head -1
+      register: detected_gateway
+      changed_when: false
+
+    - name: Display detection results
+      debug:
+        msg:
+          - ""
+          - "╔════════════════════════════════════════════════════════════╗"
+          - "║           자동 감지된 네트워크 설정                            ║"
+          - "╠════════════════════════════════════════════════════════════╣"
+          - "║  Hostname: {{ ansible_hostname }}"
+          - "║"
+          - "║  Public Network (cloudbr1) - 공인 IP, 외부 접근              ║"
+          - "║    CIDR: {{ public_network_cidr }}"
+          - "║    Detected Interface: {{ detected_public_interface | default('NOT FOUND') }}"
+          - "║    Current IP: {{ detected_public_ip | default('N/A') }}/{{ detected_public_netmask | default('N/A') }}"
+          - "║    Gateway: {{ detected_gateway.stdout | default('N/A') }}"
+          - "║"
+          - "║  Management Network (cloudbr0) - 내부 통신                  ║"
+          - "║    CIDR: {{ management_network_cidr }}"
+          - "║    Detected Interface: {{ detected_management_interface | default('NOT FOUND') }}"
+          - "║    Current IP: {{ detected_management_ip | default('N/A') }}/{{ detected_management_netmask | default('N/A') }}"
+          - "╚════════════════════════════════════════════════════════════╝"
+
+    - name: Check if both interfaces were detected
+      fail:
+        msg: |
+          네트워크 인터페이스를 감지할 수 없습니다!
+          
+          Public Network ({{ public_network_cidr }}): {{ 'Found - ' + detected_public_interface if public_interface_detect.rc == 0 else 'NOT FOUND' }}
+          Management Network ({{ management_network_cidr }}): {{ 'Found - ' + detected_management_interface if management_interface_detect.rc == 0 else 'NOT FOUND' }}
+          
+          현재 인터페이스:
+          {{ interfaces_with_ips.stdout_lines | join('\n          ') }}
+          
+          group_vars/all.yml의 CIDR 설정을 확인하세요.
+      when: 
+        - public_interface_detect.rc != 0 or management_interface_detect.rc != 0
+
+    - name: Check if interfaces are already bridges
+      shell: ip link show {{ item }} | grep -q 'master cloudbr'
+      register: already_bridged
+      failed_when: false
+      changed_when: false
+      loop:
+        - "{{ detected_public_interface }}"
+        - "{{ detected_management_interface }}"
+
+    - name: Check if cloudbr0 or cloudbr1 already exists
+      shell: ip link show | grep -E 'cloudbr0|cloudbr1'
+      register: existing_bridges
+      failed_when: false
+      changed_when: false
+
+    - name: Display existing bridges warning
+      debug:
+        msg:
+          - "⚠️  경고: 이미 브리지가 존재합니다!"
+          - "{{ existing_bridges.stdout_lines }}"
+          - ""
+          - "기존 브리지를 삭제하고 재생성합니다."
+      when: existing_bridges.rc == 0
+
+    - name: Confirm network reconfiguration
+      pause:
+        prompt: |
+          
+          ⚠️⚠️⚠️  중요  ⚠️⚠️⚠️
+          
+          이 작업은 네트워크를 재설정합니다.
+          SSH 연결이 일시적으로 끊길 수 있습니다!
+          
+          Host: {{ ansible_hostname }}
+          Public Interface: {{ detected_public_interface }} → cloudbr1
+          Management Interface: {{ detected_management_interface }} → cloudbr0
+          
+          계속하시겠습니까? (yes/no)
+        seconds: 1
+      register: network_confirm
+      when: ansible_check_mode is not defined or not ansible_check_mode
+
+    - name: Validate confirmation
+      fail:
+        msg: "네트워크 설정이 취소되었습니다."
+      when: 
+        - network_confirm.user_input is defined
+        - network_confirm.user_input != "yes"
+
+    - name: Backup existing netplan configuration
+      shell: |
+        if ls /etc/netplan/*.yaml 1> /dev/null 2>&1; then
+          mkdir -p /etc/netplan/backup
+          cp /etc/netplan/*.yaml /etc/netplan/backup/backup-$(date +%Y%m%d-%H%M%S).yaml
+        fi
+      changed_when: false
+
+    - name: Remove old CloudStack netplan config if exists
+      file:
+        path: /etc/netplan/01-cloudstack-network.yaml
+        state: absent
+
+    - name: Create netplan bridge configuration
+      copy:
+        content: |
+          # CloudStack Network Bridge Configuration
+          # Auto-generated on {{ ansible_date_time.iso8601 }}
+          # Host: {{ ansible_hostname }}
+          
+          network:
+            version: 2
+            ethernets:
+              {{ detected_public_interface }}:
+                dhcp4: no
+              {{ detected_management_interface }}:
+                dhcp4: no
+            bridges:
+              cloudbr0:  # Management Network - 내부 통신 전용
+                interfaces: [{{ detected_management_interface }}]
+                addresses: [{{ detected_management_ip }}/{{ detected_management_netmask }}]
+                parameters:
+                  stp: false
+                  forward-delay: 0
+          
+              cloudbr1:  # Public Network - 공인 IP, 외부 접근
+                interfaces: [{{ detected_public_interface }}]
+                addresses: [{{ detected_public_ip }}/{{ detected_public_netmask }}]
+                {% if detected_gateway.stdout %}
+                routes:
+                  - to: default
+                    via: {{ detected_gateway.stdout }}
+                {% endif %}
+                nameservers:
+                  addresses: {{ dns_servers | default(['168.126.63.1', '8.8.8.8']) | to_json }}
+                parameters:
+                  stp: false
+                  forward-delay: 0
+        dest: /etc/netplan/01-cloudstack-network.yaml
+        mode: '0644'
+        backup: yes
+
+    - name: Validate netplan configuration
+      command: netplan generate
+      register: netplan_validation
+      failed_when: netplan_validation.rc != 0
+
+    - name: Display pre-apply warning
+      debug:
+        msg:
+          - ""
+          - "⚠️⚠️⚠️  네트워크 적용 중  ⚠️⚠️⚠️"
+          - ""
+          - "5초 후 네트워크 설정이 적용됩니다..."
+          - "SSH 연결이 끊길 수 있습니다!"
+          - ""
+          - "재연결 시 사용할 IP:"
+          - "  Management: {{ detected_management_ip }}"
+          - "  Public: {{ detected_public_ip }}"
+          - ""
+
+    - name: Wait before applying
+      pause:
+        seconds: 5
+      when: network_confirm.user_input is defined
+
+    - name: Apply netplan configuration
+      command: netplan apply
+      async: 45
+      poll: 0
+      register: netplan_apply
+
+    - name: Wait for network to stabilize
+      pause:
+        seconds: 20
+
+    - name: Wait for netplan apply to complete
+      async_status:
+        jid: "{{ netplan_apply.ansible_job_id }}"
+      register: netplan_result
+      until: netplan_result.finished
+      retries: 3
+      delay: 5
+      ignore_errors: yes
+
+    - name: Verify bridge creation (may fail if disconnected)
+      shell: |
+        echo "=== Bridge Status ==="
+        ip link show cloudbr0 2>/dev/null && echo "✓ cloudbr0 created" || echo "✗ cloudbr0 not found"
+        ip link show cloudbr1 2>/dev/null && echo "✓ cloudbr1 created" || echo "✗ cloudbr1 not found"
+        echo ""
+        echo "=== Bridge IP Addresses ==="
+        ip -4 addr show cloudbr0 2>/dev/null | grep inet || echo "No IP on cloudbr0"
+        ip -4 addr show cloudbr1 2>/dev/null | grep inet || echo "No IP on cloudbr1"
+      register: bridge_status
+      failed_when: false
+      changed_when: false
+
+    - name: Display bridge status
+      debug:
+        msg: "{{ bridge_status.stdout_lines if bridge_status.rc == 0 else ['네트워크가 재설정되었습니다. 연결이 끊긴 경우 새 IP로 재연결하세요.'] }}"
+      when: bridge_status.stdout_lines is defined
+
+    - name: Save network configuration to host_vars
+      delegate_to: localhost
+      become: no
+      copy:
+        content: |
+          ---
+          # Auto-detected network configuration
+          # Generated on: {{ ansible_date_time.iso8601 }}
+          # Host: {{ ansible_hostname }}
+          
+          # Public Network (cloudbr1) - 공인 IP, 외부 접근
+          public_interface: {{ detected_public_interface }}
+          public_ip: {{ detected_public_ip }}
+          public_netmask: {{ detected_public_netmask }}
+          default_gateway: {{ detected_gateway.stdout }}
+          
+          # Management Network (cloudbr0) - 내부 통신
+          management_interface: {{ detected_management_interface }}
+          management_ip: {{ detected_management_ip }}
+          management_netmask: {{ detected_management_netmask }}
+          
+          # Network already configured
+          network_configured: true
+        dest: "host_vars/{{ inventory_hostname }}.yml"
+        mode: '0644'
+      when: bridge_status.rc == 0
+      ignore_errors: yes
+
+    - name: Final status
+      debug:
+        msg:
+          - ""
+          - "╔════════════════════════════════════════════════════════════╗"
+          - "║           네트워크 설정 완료                                  ║"
+          - "╠════════════════════════════════════════════════════════════╣"
+          - "║  Host: {{ ansible_hostname }}"
+          - "║"
+          - "║  cloudbr0 (Management): {{ detected_management_ip }}"
+          - "║  cloudbr1 (Public): {{ detected_public_ip }}"
+          - "║"
+          - "║  설정이 host_vars/{{ inventory_hostname }}.yml에 저장되었습니다."
+          - "╚════════════════════════════════════════════════════════════╝"
+      when: bridge_status.rc == 0

@@ -1,0 +1,7 @@
+---
+# 데이터베이스 설정
+- name: Setup Database
+  hosts: database
+  become: yes
+  roles:
+    - database
