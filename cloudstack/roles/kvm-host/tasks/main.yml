@@ -53,7 +53,7 @@
   loop:
     - { regexp: '^#?listen_tls', line: 'listen_tls=0' }
     - { regexp: '^#?listen_tcp', line: 'listen_tcp=1' }
-    - { regexp: '^#?tcp_port', line: 'tcp_port = "16509"' }
+    - { regexp: '^#?tcp_port', line: 'tcp_port = "{{ libvirt_tcp_port }}"' }
     - { regexp: '^#?mdns_adv', line: 'mdns_adv = 0' }
     - { regexp: '^#?auth_tcp', line: 'auth_tcp = "none"' }
   notify: restart libvirtd
@@ -146,5 +146,5 @@
       - "KVM Host 설정이 완료되었습니다!"
       - "CloudStack Management Server에서 이 호스트를 추가하세요."
       - "Host IP: {{ ansible_default_ipv4.address }}"
-      - "Management Bridge: cloudbr0"
-      - "Guest/Public Bridge: cloudbr1"
+      - "Management Bridge: {{ management_bridge }}"
+      - "Guest/Public Bridge: {{ public_bridge }}"

@@ -7,9 +7,13 @@ libvirt_listen_tcp: true
 libvirt_tcp_port: 16509
 
 # 네트워크 브리지
-network_bridge: cloudbr0
+# group_vars/all.yml의 management_bridge 변수 사용
+network_bridge: "{{ management_bridge }}"
 public_interface: eno1
 management_interface: eno2
+
+# 네트워크 브리지 자동 설정 여부
+configure_network_bridge: false
 
 # Root SSH 로그인 (CloudStack Management에서 호스트 추가시 필요)
 enable_root_ssh: true

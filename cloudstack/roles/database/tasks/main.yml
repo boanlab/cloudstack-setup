@@ -3,8 +3,15 @@
 
 - name: Install MySQL server
   apt:
+    name: "mysql-server={{ mysql_version }}*"
+    state: present
+  when: mysql_version is defined
+
+- name: Install MySQL server (default version)
+  apt:
     name: mysql-server
     state: present
+  when: mysql_version is not defined
 
 - name: Install Python MySQL library
   apt:
@@ -15,6 +22,7 @@
   blockinfile:
     path: /etc/mysql/mysql.conf.d/mysqld.cnf
     block: |
+      bind-address = {{ mysql_bind_address | default('0.0.0.0') }}
       server_id = 1
       sql-mode="STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION,ERROR_FOR_DIVISION_BY_ZERO,NO_ZERO_DATE,NO_ZERO_IN_DATE,NO_ENGINE_SUBSTITUTION"
       innodb_rollback_on_timeout=1

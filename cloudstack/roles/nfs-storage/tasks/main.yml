@@ -33,18 +33,20 @@
 
 - name: Create export directory
   file:
-    path: /export
+    path: "{{ nfs_export_path }}"
     state: directory
     mode: '0777'
 
 - name: Mount storage partition
   mount:
-    path: /export
+    path: "{{ nfs_export_path }}"
     src: "{{ storage_device }}1"
-    fstype: ext4
-    opts: defaults
+    fstype: "{{ storage_filesystem }}"
+    opts: "{{ storage_mount_options }}"
     state: mounted
-  when: storage_device is defined
+  when: 
+    - storage_device is defined
+    - mount_storage_device | default(true)
 
 - name: Create NFS export directories
   file:
@@ -54,28 +56,29 @@
     owner: nobody
     group: nogroup
   loop:
-    - /export/primary
-    - /export/secondary
+    - "{{ nfs_export_path }}/primary"
+    - "{{ nfs_export_path }}/secondary"
 
 - name: Configure NFS exports
   lineinfile:
     path: /etc/exports
-    line: "/export *(rw,async,no_root_squash,no_subtree_check)"
+    line: "{{ nfs_export_path }} {{ item }}(rw,async,no_root_squash,no_subtree_check)"
     create: yes
+  loop: "{{ nfs_allowed_networks }}"
   notify: restart nfs-server
 
 - name: Configure NFS mount daemon options
   lineinfile:
     path: /etc/default/nfs-kernel-server
     regexp: '^RPCMOUNTDOPTS='
-    line: 'RPCMOUNTDOPTS="-p 892 --manage-gids"'
+    line: 'RPCMOUNTDOPTS="-p {{ nfs_mountd_port }} --manage-gids"'
   notify: restart nfs-server
 
 - name: Configure statd options in nfs-common
   lineinfile:
     path: /etc/default/nfs-common
     regexp: '^STATDOPTS='
-    line: 'STATDOPTS="--port 662 --outgoing-port 2020"'
+    line: 'STATDOPTS="--port {{ nfs_statd_port }} --outgoing-port {{ nfs_statd_outgoing_port }}"'
   notify: restart nfs-server
 
 - name: Enable statd in nfs-common
@@ -88,7 +91,7 @@
   lineinfile:
     path: /etc/default/quota
     regexp: '^RPCRQUOTADOPTS='
-    line: 'RPCRQUOTADOPTS="-p 875"'
+    line: 'RPCRQUOTADOPTS="-p {{ nfs_quotad_port }}"'
   notify: restart nfs-server
 
 - name: Export NFS shares

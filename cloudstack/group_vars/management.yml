@@ -15,3 +15,12 @@ mysql_root_password: "{{ vault_mysql_root_password }}"
 
 # CloudStack UI 설정
 cloudstack_management_memory: 4096
+cloudstack_management_port: 8080
+
+# Secondary Storage 마운트 설정
+secondary_storage_mount_path: "/mnt/secondary"
+mount_secondary_storage: true
+nfs_mount_options: "defaults"
+
+# SystemVM Template 설정
+force_template_install: false

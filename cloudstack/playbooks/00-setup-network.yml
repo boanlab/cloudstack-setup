@@ -121,22 +121,22 @@
       debug:
         msg:
           - ""
-          - "╔════════════════════════════════════════════════════════════╗"
-          - "║           자동 감지된 네트워크 설정                            ║"
-          - "╠════════════════════════════════════════════════════════════╣"
-          - "║  Hostname: {{ ansible_hostname }}"
-          - "║"
-          - "║  Public Network (cloudbr1) - 공인 IP, 외부 접근              ║"
-          - "║    CIDR: {{ public_network_cidr }}"
-          - "║    Detected Interface: {{ detected_public_interface | default('NOT FOUND') }}"
-          - "║    Current IP: {{ detected_public_ip | default('N/A') }}/{{ detected_public_netmask | default('N/A') }}"
-          - "║    Gateway: {{ detected_gateway.stdout | default('N/A') }}"
-          - "║"
-          - "║  Management Network (cloudbr0) - 내부 통신                  ║"
-          - "║    CIDR: {{ management_network_cidr }}"
-          - "║    Detected Interface: {{ detected_management_interface | default('NOT FOUND') }}"
-          - "║    Current IP: {{ detected_management_ip | default('N/A') }}/{{ detected_management_netmask | default('N/A') }}"
-          - "╚════════════════════════════════════════════════════════════╝"
+          - "══════════════════════════════════════════════════════════"
+          - "           자동 감지된 네트워크 설정                            "
+          - "══════════════════════════════════════════════════════════"
+          - " Hostname: {{ ansible_hostname }}"
+          - ""
+          - "  Public Network ({{ public_bridge }}) - 공인 IP, 외부 접근  "
+          - "    CIDR: {{ public_network_cidr }}"
+          - "    Detected Interface: {{ detected_public_interface | default('NOT FOUND') }}"
+          - "    Current IP: {{ detected_public_ip | default('N/A') }}/{{ detected_public_netmask | default('N/A') }}"
+          - "    Gateway: {{ detected_gateway.stdout | default('N/A') }}"
+          - ""
+          - "  Management Network ({{ management_bridge }}) - 내부 통신  "
+          - "    CIDR: {{ management_network_cidr }}"
+          - "    Detected Interface: {{ detected_management_interface | default('NOT FOUND') }}"
+          - "    Current IP: {{ detected_management_ip | default('N/A') }}/{{ detected_management_netmask | default('N/A') }}"
+          - "══════════════════════════════════════════════════════════"
 
     - name: Check if both interfaces were detected
       fail:
@@ -154,7 +154,7 @@
         - public_interface_detect.rc != 0 or management_interface_detect.rc != 0
 
     - name: Check if interfaces are already bridges
-      shell: ip link show {{ item }} | grep -q 'master cloudbr'
+      shell: ip link show {{ item }} | grep -q 'master {{ management_bridge }}\|master {{ public_bridge }}'
       register: already_bridged
       failed_when: false
       changed_when: false
@@ -162,8 +162,18 @@
         - "{{ detected_public_interface }}"
         - "{{ detected_management_interface }}"
 
-    - name: Check if cloudbr0 or cloudbr1 already exists
-      shell: ip link show | grep -E 'cloudbr0|cloudbr1'
+    - name: Check if management o    - name: Configu    - name: Configure systemd-timesyncd NTP servers
+      lineinfile:
+        path: /etc/systemd/timesyncd.conf
+        regexp: '^#?NTP='
+        line: "NTP={{ ntp_servers | join(' ') }}"
+        
+    - name: Restart systemd-timesyncd
+      systemd:
+        name: systemd-timesyncd
+        state: restarted
+        enabled: yes bridge already exists
+      shell: ip link show | grep -E '{{ management_bridge }}|{{ public_bridge }}'
       register: existing_bridges
       failed_when: false
       changed_when: false
@@ -187,8 +197,8 @@
           SSH 연결이 일시적으로 끊길 수 있습니다!
           
           Host: {{ ansible_hostname }}
-          Public Interface: {{ detected_public_interface }} → cloudbr1
-          Management Interface: {{ detected_management_interface }} → cloudbr0
+          Public Interface: {{ detected_public_interface }} → {{ public_bridge }}
+          Management Interface: {{ detected_management_interface }} → {{ management_bridge }}
           
           계속하시겠습니까? (yes/no)
         seconds: 1
@@ -230,14 +240,14 @@
               {{ detected_management_interface }}:
                 dhcp4: no
             bridges:
-              cloudbr0:  # Management Network - 내부 통신 전용
+              {{ management_bridge }}:  # Management Network - 내부 통신 전용
                 interfaces: [{{ detected_management_interface }}]
                 addresses: [{{ detected_management_ip }}/{{ detected_management_netmask }}]
                 parameters:
                   stp: false
                   forward-delay: 0
           
-              cloudbr1:  # Public Network - 공인 IP, 외부 접근
+              {{ public_bridge }}:  # Public Network - 공인 IP, 외부 접근
                 interfaces: [{{ detected_public_interface }}]
                 addresses: [{{ detected_public_ip }}/{{ detected_public_netmask }}]
                 {% if detected_gateway.stdout %}
@@ -300,12 +310,12 @@
     - name: Verify bridge creation (may fail if disconnected)
       shell: |
         echo "=== Bridge Status ==="
-        ip link show cloudbr0 2>/dev/null && echo "✓ cloudbr0 created" || echo "✗ cloudbr0 not found"
-        ip link show cloudbr1 2>/dev/null && echo "✓ cloudbr1 created" || echo "✗ cloudbr1 not found"
+        ip link show {{ management_bridge }} 2>/dev/null && echo "✓ {{ management_bridge }} created" || echo "✗ {{ management_bridge }} not found"
+        ip link show {{ public_bridge }} 2>/dev/null && echo "✓ {{ public_bridge }} created" || echo "✗ {{ public_bridge }} not found"
         echo ""
         echo "=== Bridge IP Addresses ==="
-        ip -4 addr show cloudbr0 2>/dev/null | grep inet || echo "No IP on cloudbr0"
-        ip -4 addr show cloudbr1 2>/dev/null | grep inet || echo "No IP on cloudbr1"
+        ip -4 addr show {{ management_bridge }} 2>/dev/null | grep inet || echo "No IP on {{ management_bridge }}"
+        ip -4 addr show {{ public_bridge }} 2>/dev/null | grep inet || echo "No IP on {{ public_bridge }}"
       register: bridge_status
       failed_when: false
       changed_when: false
@@ -325,13 +335,13 @@
           # Generated on: {{ ansible_date_time.iso8601 }}
           # Host: {{ ansible_hostname }}
           
-          # Public Network (cloudbr1) - 공인 IP, 외부 접근
+          # Public Network ({{ public_bridge }}) - 공인 IP, 외부 접근
           public_interface: {{ detected_public_interface }}
           public_ip: {{ detected_public_ip }}
           public_netmask: {{ detected_public_netmask }}
           default_gateway: {{ detected_gateway.stdout }}
           
-          # Management Network (cloudbr0) - 내부 통신
+          # Management Network ({{ management_bridge }}) - 내부 통신
           management_interface: {{ detected_management_interface }}
           management_ip: {{ detected_management_ip }}
           management_netmask: {{ detected_management_netmask }}
@@ -352,8 +362,8 @@
           - "╠════════════════════════════════════════════════════════════╣"
           - "║  Host: {{ ansible_hostname }}"
           - "║"
-          - "║  cloudbr0 (Management): {{ detected_management_ip }}"
-          - "║  cloudbr1 (Public): {{ detected_public_ip }}"
+          - "║  {{ management_bridge }} (Management): {{ detected_management_ip }}"
+          - "║  {{ public_bridge }} (Public): {{ detected_public_ip }}"
           - "║"
           - "║  설정이 host_vars/{{ inventory_hostname }}.yml에 저장되었습니다."
           - "╚════════════════════════════════════════════════════════════╝"

@@ -1,9 +1,9 @@
 ---
 # Management role - CloudStack Management Server 설치
 
-- name: Install Java (OpenJDK 11)
+- name: Install Java (OpenJDK)
   apt:
-    name: openjdk-11-jre-headless
+    name: "{{ java_package }}"
     state: present
 
 - name: Create CloudStack APT keyring directory
@@ -48,12 +48,14 @@
 
 - name: Mount NFS secondary storage
   mount:
-    path: /mnt/secondary
-    src: "{{ nfs_server }}:/export/secondary"
+    path: "{{ secondary_storage_mount_path }}"
+    src: "{{ nfs_server }}:{{ nfs_secondary_path }}"
     fstype: nfs
-    opts: defaults
+    opts: "{{ nfs_mount_options }}"
     state: mounted
-  when: nfs_server is defined
+  when: 
+    - nfs_server is defined
+    - mount_secondary_storage | default(true)
 
 - name: Check if SystemVM template is already installed
   stat:
@@ -112,7 +114,7 @@
 
 - name: Wait for CloudStack management to be ready
   wait_for:
-    port: 8080
+    port: "{{ cloudstack_management_port }}"
     delay: 10
     timeout: 300
 
@@ -120,6 +122,6 @@
   debug:
     msg:
       - "CloudStack Management Server is ready!"
-      - "Web UI: http://{{ management_server_ip }}:8080/client"
+      - "Web UI: http://{{ management_server_ip }}:{{ cloudstack_management_port }}/client"
       - "Default credentials: admin / password"
       - "Check logs: tail -f /var/log/cloudstack/management/management-server.log"

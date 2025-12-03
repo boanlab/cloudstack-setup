@@ -10,7 +10,7 @@
 - name: Install basic packages
   apt:
     name:
-      - openntpd
+      - chrony
       - openssh-server
       - sudo
       - vim
@@ -29,13 +29,21 @@
     - ansible_processor | select('search', 'Intel') | list | length > 0
   ignore_errors: yes
 
-- name: Ensure NTP is running
+- name: Configure chrony NTP servers
+  template:
+    src: chrony.conf.j2
+    dest: /etc/chrony/chrony.conf
+    mode: '0644'
+  notify: restart chrony
+  when: ansible_os_family == "Debian"
+
+- name: Ensure chrony is running
   systemd:
-    name: openntpd
+    name: chrony
     state: started
     enabled: yes
   when: ansible_os_family == "Debian"
 
-- name: Set timezone to Asia/Seoul
+- name: Set timezone
   timezone:
-    name: Asia/Seoul
+    name: "{{ timezone }}"
