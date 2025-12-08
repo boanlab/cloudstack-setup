@@ -2,7 +2,7 @@
 
 Apache CloudStack 설치를 자동화하는 Ansible 플레이북 프로젝트입니다.
 
-**테스트 환경**: Ubuntu 22.04, CloudStack 4.19.2.0
+**테스트 환경**: Ubuntu 24.04, CloudStack 4.19.2.0
 
 ## 배포 아키텍처
 
@@ -40,17 +40,15 @@ cloudstack-infra/
 │   ├── database.yml      # 데이터베이스 설정
 │   ├── management.yml    # Management 서버 설정
 │   ├── kvm-hosts.yml     # KVM 호스트 설정
-│   ├── nfs-storage.yml   # NFS 스토리지 설정
-│   └── vault.yml         # 암호화된 비밀번호 (생성 필요)
-├── host_vars/             # 호스트별 변수
-├── vars/                  # 추가 변수 파일
+│   ├── vault.yml         # 암호화된 비밀번호 (생성 필요)
+│   └── zone.yml  
 ├── playbooks/             # 메인 플레이북 파일들
 │   ├── site.yml                    # 전체 설치
 │   ├── 01-prepare-common.yml       # 공통 설정
-│   ├── 02-setup-nfs.yml            # NFS 스토리지
-│   ├── 03-setup-database.yml       # 데이터베이스
-│   ├── 04-setup-management.yml     # Management 서버
-│   ├── 05-setup-kvm-hosts.yml      # KVM 호스트
+│   ├── 02-setup-database.yml       # 데이터베이스
+│   ├── 03-setup-management.yml     # Management 서버
+│   ├── 04-setup-kvm-hosts.yml      # KVM 호스트
+│   ├── 05-setup-zone.yml      # KVM 호스트
 │   ├── troubleshoot-ssvm.yml       # SSVM 문제 해결
 │   └── reinstall-systemvm.yml      # SystemVM 템플릿 재설치
 ├── roles/                 # Ansible roles

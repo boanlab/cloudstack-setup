@@ -63,8 +63,6 @@ ansible-playbook -i inventory/hosts playbooks/site.yml --ask-vault-pass
 특정 컴포넌트만 설치하려면:
 
 ```bash
-# NFS 스토리지만
-ansible-playbook -i inventory/hosts playbooks/02-setup-nfs.yml
 
 # 데이터베이스만
 ansible-playbook -i inventory/hosts playbooks/03-setup-database.yml
@@ -85,22 +83,17 @@ Ansible은 다음 순서로 설치를 진행합니다:
    - NTP 설정
    - 시스템 설정
 
-2. **NFS 스토리지** (`nfs-storage` role)
-   - NFS 서버 설치
-   - Primary/Secondary 스토리지 구성
-   - 디스크 파티셔닝 및 마운트
-
-3. **데이터베이스** (`database` role)
+2. **데이터베이스** (`database` role)
    - MySQL 설치 및 설정
    - CloudStack용 최적화
 
-4. **Management 서버** (`management` role)
+3. **Management 서버** (`management` role)
    - CloudStack Management 패키지 설치
    - SystemVM 템플릿 설치
    - 데이터베이스 초기화
    - Management 서버 시작
 
-5. **KVM 호스트** (`kvm-host` role)
+4. **KVM 호스트** (`kvm-host` role)
    - KVM 및 libvirt 설치
    - CloudStack Agent 설치
    - Libvirtd TCP 리스닝 설정
