@@ -11,7 +11,6 @@
 
 - import_playbook: 00-setup-network.yml
 - import_playbook: 01-prepare-common.yml
-- import_playbook: 02-setup-nfs.yml
 - import_playbook: 03-setup-database.yml
 - import_playbook: 04-setup-management.yml
 - import_playbook: 05-setup-kvm-hosts.yml

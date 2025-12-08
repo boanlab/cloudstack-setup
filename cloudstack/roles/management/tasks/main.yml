@@ -1,6 +1,10 @@
 ---
 # Management role - CloudStack Management Server 설치
 
+- name: Wait for apt lock to be released
+  shell: while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 1; done
+  changed_when: false
+
 - name: Install Java (OpenJDK)
   apt:
     name: "{{ java_package }}"
@@ -76,23 +80,32 @@
   when: 
     - not systemvm_template.stat.exists or force_template_install | default(false)
     - systemvm_template_url is defined
-  no_log: true
+  register: systemvm_install
 
-- name: Check if CloudStack database is initialized
-  stat:
-    path: /var/lib/cloudstack-management/.dbsetup
-  register: db_setup
+- name: Check if CloudStack database exists
+  shell: mysql -h {{ db_host }} -u root -p'{{ mysql_root_password }}' -e "SHOW DATABASES LIKE 'cloud';" | grep -q cloud
+  register: db_exists
+  changed_when: false
+  failed_when: false
+
+- name: Ensure CloudStack management directory exists
+  file:
+    path: /var/lib/cloudstack-management
+    state: directory
+    mode: '0755'
 
 - name: Initialize CloudStack database
-  shell: |
-    cloudstack-setup-databases cloud:{{ cloudstack_db_password }}@{{ db_host }} \
-      --deploy-as=root:{{ mysql_root_password }} \
+  command: >
+    cloudstack-setup-databases cloud:cloud@{{ db_host }} 
+      --deploy-as=root:{{ mysql_root_password }} 
       -i {{ management_server_ip }}
-  args:
-    creates: /var/lib/cloudstack-management/.dbsetup
-  when: not db_setup.stat.exists
-  no_log: true
+  when: db_exists.rc != 0
   register: db_init
+  notify: restart cloudstack-management
+  tags:
+    - init-db
+  
+
 
 - name: Create database setup marker
   file:

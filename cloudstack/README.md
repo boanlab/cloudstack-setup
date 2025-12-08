@@ -4,6 +4,32 @@ Apache CloudStack 설치를 자동화하는 Ansible 플레이북 프로젝트입
 
 **테스트 환경**: Ubuntu 22.04, CloudStack 4.19.2.0
 
+## 배포 아키텍처
+
+### 네트워크 구성
+
+이 프로젝트는 **2개의 독립적인 물리 네트워크**를 사용하는 CloudStack Advanced Zone을 구성한다.
+
+#### 1. CloudStack Public Network (cloudbr0)
+- **용도**: Guest VM 트래픽, Public IP, System VM (SSVM, CPVM)
+- **CIDR**: 10.10.0.0/16 (예시)
+- **Traffic Types**: Guest, Public
+- **특징**: 
+  - Guest VM의 외부 통신
+  - Public IP Range 할당
+  - Floating IP 제공
+  - VXLAN 기반 네트워크 격리 (VNI: 5000-6000)
+
+#### 2. CloudStack Management Network (cloudbr1)
+- **용도**: CloudStack 내부 관리 트래픽, 스토리지 트래픽, 관리 대시보드 (mgmt-ip:8080) 접근
+- **CIDR**: 10.25.0.0/24 (예시)
+- **Traffic Types**: Management, Storage
+- **특징**:
+  - Zone 내 Internal DNS 통신 대역
+  - Management Server ↔ Hypervisor 통신
+  - Pod IP Range (Management 트래픽용)
+
+
 ## 디렉토리 구조
 
 ```
@@ -33,8 +59,6 @@ cloudstack-infra/
 │   ├── management/       # CloudStack Management Server
 │   ├── kvm-host/         # KVM 하이퍼바이저 호스트
 │   └── nfs-storage/      # NFS 스토리지 서버
-├── files/                # 정적 파일
-├── templates/            # Jinja2 템플릿
 ├── ansible.cfg           # Ansible 설정 파일
 ├── README.md             # 이 파일
 └── INSTALL.md            # 상세 설치 가이드

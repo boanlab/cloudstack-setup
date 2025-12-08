@@ -51,8 +51,8 @@
           - "템플릿 설치 상태: {{ 'Success' if template_check.stat.exists else 'Failed' }}"
           - "경로: /mnt/secondary/template/tmpl/1/3"
 
-    - name: Restart CloudStack management
-      systemd:
-        name: cloudstack-management
-        state: restarted
-      when: template_check.stat.exists
+#    - name: Restart CloudStack management
+#      systemd:
+#        name: cloudstack-management
+#        state: restarted
+#      when: template_check.stat.exists

@@ -9,10 +9,10 @@ cloudstack_apt_repo: "deb [signed-by=/etc/apt/keyrings/cloudstack.gpg] http://pa
 
 # 네트워크 CIDR 설정
 # Public Network: 공인 IP, SNAT 가능한 대역
-public_network_cidr: "10.0.0.0/16"
+public_network_cidr: "10.10.0.0/24"
 
 # Management Network: 내부 통신 전용 대역
-management_network_cidr: "10.5.0.0/24"
+management_network_cidr: "10.15.0.0/24"
 
 # 네트워크 브리지 이름
 management_bridge: "cloudbr0"  # Management Network 브리지
@@ -33,8 +33,6 @@ dns_servers:
 ntp_servers:
   - 0.pool.ntp.org
   - 1.pool.ntp.org
-
-timezone: "Asia/Seoul"
 
 # 방화벽 설정
 configure_firewall: true

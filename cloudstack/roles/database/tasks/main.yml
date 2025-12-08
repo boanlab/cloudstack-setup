@@ -6,17 +6,36 @@
     name: "mysql-server={{ mysql_version }}*"
     state: present
   when: mysql_version is defined
+  retries: 10
+  delay: 15
+  register: mysql_install_result
+  until: mysql_install_result is succeeded
 
 - name: Install MySQL server (default version)
   apt:
     name: mysql-server
     state: present
   when: mysql_version is not defined
+  retries: 10
+  delay: 15
+  register: mysql_default_install_result
+  until: mysql_default_install_result is succeeded
 
 - name: Install Python MySQL library
   apt:
     name: python3-pymysql
     state: present
+  retries: 10
+  delay: 15
+  register: pymysql_install_result
+  until: pymysql_install_result is succeeded
+
+- name: Comment out default bind-address
+  lineinfile:
+    path: /etc/mysql/mysql.conf.d/mysqld.cnf
+    regexp: '^bind-address\s*=\s*127\.0\.0\.1'
+    line: '# bind-address            = 127.0.0.1'
+    backrefs: no
 
 - name: Configure MySQL for CloudStack
   blockinfile:
@@ -50,14 +69,22 @@
     plugin: mysql_native_password
     state: present
   ignore_errors: yes
-  no_log: true
 
 - name: Create .my.cnf file for root
   template:
     src: root-my.cnf.j2
     dest: /root/.my.cnf
     mode: '0600'
-  no_log: true
+
+- name: Grant root remote access from any host
+  mysql_user:
+    name: root
+    password: "{{ mysql_root_password }}"
+    host: "%"
+    priv: '*.*:ALL,GRANT'
+    plugin: mysql_native_password
+    state: present
+    login_unix_socket: /var/run/mysqld/mysqld.sock
 
 - name: Remove anonymous MySQL users
   mysql_user:

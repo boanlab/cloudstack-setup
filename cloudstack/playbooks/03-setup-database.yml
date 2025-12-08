@@ -3,5 +3,6 @@
 - name: Setup Database
   hosts: database
   become: yes
+  serial: 1
   roles:
     - database

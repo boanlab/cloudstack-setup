@@ -1,0 +1,7 @@
+---
+# Management role handlers
+
+- name: restart cloudstack-management
+  systemd:
+    name: cloudstack-management
+    state: restarted

@@ -1,7 +1,0 @@
----
-# Handler for NFS storage role
-
-- name: restart nfs-server
-  systemd:
-    name: nfs-kernel-server
-    state: restarted

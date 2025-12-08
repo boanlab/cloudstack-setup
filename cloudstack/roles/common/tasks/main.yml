@@ -1,10 +1,59 @@
 ---
 # Common role - 모든 호스트에 적용되는 기본 설정
 
+- name: Wait for apt lock to be released
+  shell: |
+    timeout=300
+    elapsed=0
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || 
+          fuser /var/lib/dpkg/lock >/dev/null 2>&1 || 
+          fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || 
+          fuser /var/cache/apt/archives/lock >/dev/null 2>&1; do
+      if [ $elapsed -ge $timeout ]; then
+        echo "Timeout waiting for apt lock"
+        exit 1
+      fi
+      echo "Waiting for apt lock... ($elapsed/$timeout)"
+      sleep 3
+      elapsed=$((elapsed + 3))
+    done
+  changed_when: false
+  when: ansible_os_family == "Debian"
+
+- name: Fix system time (ignore GPG verification temporarily)
+  shell: |
+    timedatectl set-ntp false
+    timedatectl set-ntp true
+  changed_when: false
+  ignore_errors: yes
+
 - name: Update apt cache
   apt:
     update_cache: yes
     cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+  retries: 3
+  delay: 10
+  register: apt_update_result
+  until: apt_update_result is succeeded
+
+- name: Wait for apt lock to be released
+  shell: |
+    timeout=300
+    elapsed=0
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || 
+          fuser /var/lib/dpkg/lock >/dev/null 2>&1 || 
+          fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || 
+          fuser /var/cache/apt/archives/lock >/dev/null 2>&1; do
+      if [ $elapsed -ge $timeout ]; then
+        echo "Timeout waiting for apt lock"
+        exit 1
+      fi
+      echo "Waiting for apt lock... ($elapsed/$timeout)"
+      sleep 3
+      elapsed=$((elapsed + 3))
+    done
+  changed_when: false
   when: ansible_os_family == "Debian"
 
 - name: Install basic packages
@@ -19,6 +68,10 @@
       - bridge-utils
     state: present
   when: ansible_os_family == "Debian"
+  retries: 10
+  delay: 15
+  register: install_result
+  until: install_result is succeeded
 
 - name: Install intel-microcode (Intel CPUs only)
   apt:

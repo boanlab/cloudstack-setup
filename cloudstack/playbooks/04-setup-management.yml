@@ -3,5 +3,6 @@
 - name: Setup CloudStack Management Server
   hosts: management
   become: yes
+  serial: 1
   roles:
     - management

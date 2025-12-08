@@ -82,16 +82,6 @@
     policy: ACCEPT
   when: configure_iptables_forward | default(true)
 
-- name: Save iptables rules
-  shell: |
-    if command -v netfilter-persistent > /dev/null; then
-      netfilter-persistent save
-    elif command -v iptables-save > /dev/null; then
-      iptables-save > /etc/iptables/rules.v4
-    fi
-  when: configure_iptables_forward | default(true)
-  changed_when: false
-
 - name: Enable IP forwarding
   sysctl:
     name: net.ipv4.ip_forward
@@ -115,14 +105,6 @@
     - enable_root_ssh | default(true)
     - root_password_hash is defined
   no_log: true
-
-- name: Create network bridge configuration
-  template:
-    src: netplan-bridge.yaml.j2
-    dest: /etc/netplan/01-cloudstack-network.yaml
-    mode: '0644'
-  when: configure_network_bridge | default(false)
-  notify: apply netplan
 
 - name: Install NFS client for storage
   apt:

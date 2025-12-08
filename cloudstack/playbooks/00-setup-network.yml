@@ -11,6 +11,12 @@
   gather_facts: yes
   
   tasks:
+    - name: Debug - Check variable loading
+      debug:
+        msg:
+          - "public_network_cidr: {{ public_network_cidr | default('NOT DEFINED') }}"
+          - "management_network_cidr: {{ management_network_cidr | default('NOT DEFINED') }}"
+    
     - name: Check if network CIDRs are defined
       fail:
         msg: |
@@ -18,7 +24,7 @@
           group_vars/all.yml에 다음 변수를 설정하세요:
             - public_network_cidr (예: 10.0.0.0/16)
             - management_network_cidr (예: 10.5.0.0/24)
-      when: public_network_cidr is not defined or management_network_cidr is not defined
+      when: (public_network_cidr is not defined) or (management_network_cidr is not defined)
 
     - name: Display network configuration
       debug:
@@ -143,8 +149,8 @@
         msg: |
           네트워크 인터페이스를 감지할 수 없습니다!
           
-          Public Network ({{ public_network_cidr }}): {{ 'Found - ' + detected_public_interface if public_interface_detect.rc == 0 else 'NOT FOUND' }}
-          Management Network ({{ management_network_cidr }}): {{ 'Found - ' + detected_management_interface if management_interface_detect.rc == 0 else 'NOT FOUND' }}
+          Public Network ({{ public_network_cidr }}): {{ 'Found - ' + (detected_public_interface | default('')) if public_interface_detect.rc == 0 else 'NOT FOUND' }}
+          Management Network ({{ management_network_cidr }}): {{ 'Found - ' + (detected_management_interface | default('')) if management_interface_detect.rc == 0 else 'NOT FOUND' }}
           
           현재 인터페이스:
           {{ interfaces_with_ips.stdout_lines | join('\n          ') }}
@@ -162,68 +168,49 @@
         - "{{ detected_public_interface }}"
         - "{{ detected_management_interface }}"
 
-    - name: Check if management o    - name: Configu    - name: Configure systemd-timesyncd NTP servers
-      lineinfile:
-        path: /etc/systemd/timesyncd.conf
-        regexp: '^#?NTP='
-        line: "NTP={{ ntp_servers | join(' ') }}"
-        
-    - name: Restart systemd-timesyncd
-      systemd:
-        name: systemd-timesyncd
-        state: restarted
-        enabled: yes bridge already exists
+    - name: Check if management or public bridge already exists
       shell: ip link show | grep -E '{{ management_bridge }}|{{ public_bridge }}'
       register: existing_bridges
       failed_when: false
       changed_when: false
 
-    - name: Display existing bridges warning
+    - name: Display existing bridges info
       debug:
         msg:
-          - "⚠️  경고: 이미 브리지가 존재합니다!"
+          - "✓ 브리지가 이미 설정되어 있습니다. 네트워크 설정을 건너뜁니다."
           - "{{ existing_bridges.stdout_lines }}"
-          - ""
-          - "기존 브리지를 삭제하고 재생성합니다."
       when: existing_bridges.rc == 0
 
-    - name: Confirm network reconfiguration
-      pause:
-        prompt: |
-          
-          ⚠️⚠️⚠️  중요  ⚠️⚠️⚠️
-          
-          이 작업은 네트워크를 재설정합니다.
-          SSH 연결이 일시적으로 끊길 수 있습니다!
-          
-          Host: {{ ansible_hostname }}
-          Public Interface: {{ detected_public_interface }} → {{ public_bridge }}
-          Management Interface: {{ detected_management_interface }} → {{ management_bridge }}
-          
-          계속하시겠습니까? (yes/no)
-        seconds: 1
-      register: network_confirm
-      when: ansible_check_mode is not defined or not ansible_check_mode
+    - name: Skip network setup if bridges exist
+      meta: end_host
+      when: existing_bridges.rc == 0
 
-    - name: Validate confirmation
-      fail:
-        msg: "네트워크 설정이 취소되었습니다."
-      when: 
-        - network_confirm.user_input is defined
-        - network_confirm.user_input != "yes"
+    - name: Display network reconfiguration warning
+      debug:
+        msg:
+          - ""
+          - "⚠️⚠️⚠️  중요  ⚠️⚠️⚠️"
+          - ""
+          - "네트워크를 재설정합니다."
+          - "SSH 연결이 일시적으로 끊길 수 있습니다!"
+          - ""
+          - "Host: {{ ansible_hostname }}"
+          - "Public Interface: {{ detected_public_interface }} → {{ public_bridge }}"
+          - "Management Interface: {{ detected_management_interface }} → {{ management_bridge }}"
+          - ""
 
     - name: Backup existing netplan configuration
       shell: |
         if ls /etc/netplan/*.yaml 1> /dev/null 2>&1; then
-          mkdir -p /etc/netplan/backup
-          cp /etc/netplan/*.yaml /etc/netplan/backup/backup-$(date +%Y%m%d-%H%M%S).yaml
+          backup_dir="/etc/netplan/backup/backup-$(date +%Y%m%d-%H%M%S)"
+          mkdir -p "$backup_dir"
+          cp /etc/netplan/*.yaml "$backup_dir/"
         fi
       changed_when: false
 
-    - name: Remove old CloudStack netplan config if exists
-      file:
-        path: /etc/netplan/01-cloudstack-network.yaml
-        state: absent
+    - name: Remove all existing netplan configurations
+      shell: rm -f /etc/netplan/*.yaml
+      changed_when: true
 
     - name: Create netplan bridge configuration
       copy:
@@ -250,18 +237,16 @@
               {{ public_bridge }}:  # Public Network - 공인 IP, 외부 접근
                 interfaces: [{{ detected_public_interface }}]
                 addresses: [{{ detected_public_ip }}/{{ detected_public_netmask }}]
-                {% if detected_gateway.stdout %}
-                routes:
-                  - to: default
-                    via: {{ detected_gateway.stdout }}
-                {% endif %}
-                nameservers:
+                {% if detected_gateway.stdout %}routes:
+                - to: default
+                  via: {{ detected_gateway.stdout }}
+                {% endif %}nameservers:
                   addresses: {{ dns_servers | default(['168.126.63.1', '8.8.8.8']) | to_json }}
                 parameters:
                   stp: false
                   forward-delay: 0
         dest: /etc/netplan/01-cloudstack-network.yaml
-        mode: '0644'
+        mode: '0600'
         backup: yes
 
     - name: Validate netplan configuration
@@ -286,7 +271,6 @@
     - name: Wait before applying
       pause:
         seconds: 5
-      when: network_confirm.user_input is defined
 
     - name: Apply netplan configuration
       command: netplan apply
@@ -296,7 +280,7 @@
 
     - name: Wait for network to stabilize
       pause:
-        seconds: 20
+        seconds: 10
 
     - name: Wait for netplan apply to complete
       async_status:
