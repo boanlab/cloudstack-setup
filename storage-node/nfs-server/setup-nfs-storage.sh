@@ -2,8 +2,16 @@
 # CloudStack NFS Storage Server Setup Script
 # Tested on Ubuntu 22.04 with CloudStack 4.19.2.0
 #
-# Usage: sudo ./install-nfs-server.sh [storage_device]
-# Example: sudo ./install-nfs-server.sh /dev/sdb
+# Usage: sudo ./setup-nfs-storage.sh [OPTIONS]
+# Options:
+#   -d, --device DEVICE       Storage device (default: /dev/sdb)
+#   -e, --export PATH         Export path (default: /export)
+#   -p, --primary PATH        Primary storage path (default: /export/primary)
+#   -s, --secondary PATH      Secondary storage path (default: /export/secondary)
+#   -y, --yes                 Auto-confirm all prompts
+#   -h, --help                Show this help message
+#
+# Example: sudo ./setup-nfs-storage.sh -d /dev/sdc -e /mnt/nfs -y
 
 set -e
 
@@ -13,11 +21,84 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Configuration
-STORAGE_DEVICE="${1:-/dev/sdb}"
+# Default Configuration
+STORAGE_DEVICE="/dev/sdb"
 EXPORT_PATH="/export"
 PRIMARY_PATH="/export/primary"
 SECONDARY_PATH="/export/secondary"
+AUTO_CONFIRM=true
+
+# Show help
+show_help() {
+    cat << EOF
+CloudStack NFS Storage Server Setup Script
+
+Usage: sudo $0 [OPTIONS]
+
+Options:
+    -d, --device DEVICE       Storage device (default: /dev/sdb)
+    -e, --export PATH         Export path (default: /export)
+    -p, --primary PATH        Primary storage path (default: /export/primary)
+    -s, --secondary PATH      Secondary storage path (default: /export/secondary)
+    -n, --no-confirm          Interactive mode (prompt for confirmation)
+    -h, --help                Show this help message
+
+Examples:
+    # Use default settings (auto-confirm enabled)
+    sudo $0
+
+    # Custom device and paths
+    sudo $0 -d /dev/sdc -e /mnt/nfs
+
+    # Interactive mode with prompts
+    sudo $0 -n
+
+EOF
+    exit 0
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -d|--device)
+            STORAGE_DEVICE="$2"
+            shift 2
+            ;;
+        -e|--export)
+            EXPORT_PATH="$2"
+            shift 2
+            ;;
+        -p|--primary)
+            PRIMARY_PATH="$2"
+            shift 2
+            ;;
+        -s|--secondary)
+            SECONDARY_PATH="$2"
+            shift 2
+            ;;
+        -n|--no-confirm)
+            AUTO_CONFIRM=false
+            shift
+            ;;
+        -h|--help)
+            show_help
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            show_help
+            ;;
+    esac
+done
+
+# Auto-adjust paths if export path is changed but primary/secondary are defaults
+if [[ "$EXPORT_PATH" != "/export" ]]; then
+    if [[ "$PRIMARY_PATH" == "/export/primary" ]]; then
+        PRIMARY_PATH="${EXPORT_PATH}/primary"
+    fi
+    if [[ "$SECONDARY_PATH" == "/export/secondary" ]]; then
+        SECONDARY_PATH="${EXPORT_PATH}/secondary"
+    fi
+fi
 
 # Functions
 log_info() {
@@ -41,6 +122,12 @@ check_root() {
 
 confirm_action() {
     local message="$1"
+    
+    if [[ "$AUTO_CONFIRM" == true ]]; then
+        log_info "$message (Auto-confirmed)"
+        return 0
+    fi
+    
     echo -e "${YELLOW}${message}${NC}"
     read -p "Continue? (yes/no): " response
     if [[ "$response" != "yes" ]]; then
@@ -221,16 +308,14 @@ print_summary() {
     local server_ip=$(hostname -I | awk '{print $1}')
     
     echo ""
-    echo "╔════════════════════════════════════════════════════════════╗"
-    echo "║         NFS Storage Server Setup Complete!                ║"
-    echo "╠════════════════════════════════════════════════════════════╣"
-    echo "║  Server IP: $server_ip"
-    echo "║  Export Path: $EXPORT_PATH"
-    echo "║  Primary Storage: $PRIMARY_PATH"
-    echo "║  Secondary Storage: $SECONDARY_PATH"
-    echo "║"
-    echo "║  NFS is now ready for CloudStack!"
-    echo "╚════════════════════════════════════════════════════════════╝"
+    echo " ════════════════════════════════════════════════════════════"
+    echo "             NFS Storage Server Setup Complete!              "
+    echo " ════════════════════════════════════════════════════════════"
+    echo "   Server IP: $server_ip"
+    echo "   Export Path: $EXPORT_PATH"
+    echo "   Primary Storage: $PRIMARY_PATH"
+    echo "   Secondary Storage: $SECONDARY_PATH"
+    echo " ════════════════════════════════════════════════════════════"
     echo ""
     echo "Next steps:"
     echo "1. Test NFS from Management server:"
@@ -243,12 +328,14 @@ print_summary() {
 # Main execution
 main() {
     log_info "Starting CloudStack NFS Storage Server setup..."
+    log_info "Configuration:"
+    log_info "  Storage Device: $STORAGE_DEVICE"
+    log_info "  Export Path: $EXPORT_PATH"
+    log_info "  Primary Path: $PRIMARY_PATH"
+    log_info "  Secondary Path: $SECONDARY_PATH"
+    echo ""
     
     check_root
-    
-    if [[ "$STORAGE_DEVICE" != "/dev/sdb" ]]; then
-        log_info "Using custom storage device: $STORAGE_DEVICE"
-    fi
     
     # Disk setup
     check_storage_device

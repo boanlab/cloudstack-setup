@@ -14,9 +14,6 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-CLOUDSTACK_URL=""
-API_KEY=""
-SECRET_KEY=""
 NFS_SERVER=""
 NFS_PATH="/export/secondary"
 ZONE_NAME=""
@@ -49,23 +46,35 @@ check_cloudmonkey() {
     log_info "CloudMonkey is installed: $(cmk --version 2>&1 | head -1)"
 }
 
+check_cloudmonkey_config() {
+    log_info "Checking CloudMonkey configuration..."
+    
+    # Check if config file exists
+    local config_file="$HOME/.cmk/config"
+    if [[ ! -f "$config_file" ]]; then
+        log_error "CloudMonkey is not configured!"
+        print_config_help
+        exit 1
+    fi
+    
+    # Check if required fields are set
+    local url=$(grep "^url" "$config_file" | cut -d'=' -f2 | tr -d ' ')
+    local apikey=$(grep "^apikey" "$config_file" | cut -d'=' -f2 | tr -d ' ')
+    local secretkey=$(grep "^secretkey" "$config_file" | cut -d'=' -f2 | tr -d ' ')
+    
+    if [[ -z "$url" ]] || [[ -z "$apikey" ]] || [[ -z "$secretkey" ]]; then
+        log_error "CloudMonkey configuration is incomplete!"
+        print_config_help
+        exit 1
+    fi
+    
+    log_info "CloudMonkey configuration found"
+    log_info "URL: $url"
+}
+
 get_user_input() {
     log_info "CloudStack Secondary Storage Registration"
     echo ""
-    
-    # CloudStack connection info
-    if [[ -z "$CLOUDSTACK_URL" ]]; then
-        read -p "Enter CloudStack Management Server URL (e.g., http://10.0.0.11:8080/client/api): " CLOUDSTACK_URL
-    fi
-    
-    if [[ -z "$API_KEY" ]]; then
-        read -p "Enter API Key: " API_KEY
-    fi
-    
-    if [[ -z "$SECRET_KEY" ]]; then
-        read -sp "Enter Secret Key: " SECRET_KEY
-        echo ""
-    fi
     
     # NFS server info
     if [[ -z "$NFS_SERVER" ]]; then
@@ -84,7 +93,6 @@ get_user_input() {
     
     echo ""
     log_info "Configuration:"
-    echo "  CloudStack URL: $CLOUDSTACK_URL"
     echo "  NFS Server: nfs://${NFS_SERVER}${NFS_PATH}"
     echo "  Zone: $ZONE_NAME"
     echo ""
@@ -96,19 +104,7 @@ get_user_input() {
     fi
 }
 
-configure_cloudmonkey() {
-    log_info "Configuring CloudMonkey..."
-    
-    # Create CloudMonkey config
-    cmk set profile cloudstack-admin
-    cmk set url "$CLOUDSTACK_URL"
-    cmk set apikey "$API_KEY"
-    cmk set secretkey "$SECRET_KEY"
-    cmk set display table
-    cmk set timeout 3600
-    
-    log_info "CloudMonkey configured"
-}
+
 
 test_connection() {
     log_info "Testing CloudStack connection..."
@@ -217,15 +213,27 @@ print_summary() {
     echo ""
 }
 
-print_api_key_help() {
+print_config_help() {
     echo ""
-    log_info "How to get API Key and Secret Key:"
+    log_error "Please configure CloudMonkey first!"
     echo ""
-    echo "1. Login to CloudStack UI as admin"
-    echo "2. Go to: Accounts → admin → View Users"
-    echo "3. Click on 'admin' user"
-    echo "4. Go to 'Keys' tab"
-    echo "5. Click 'Generate Keys' or use existing keys"
+    echo "Steps to configure CloudMonkey:"
+    echo ""
+    echo "1. Get API credentials from CloudStack UI:"
+    echo "   - Login to CloudStack UI as admin"
+    echo "   - Go to: Accounts → admin → View Users"
+    echo "   - Click on 'admin' user"
+    echo "   - Go to 'Keys' tab"
+    echo "   - Click 'Generate Keys' or use existing keys"
+    echo ""
+    echo "2. Configure CloudMonkey:"
+    echo "   cmk set url http://YOUR-MGMT-SERVER:8080/client/api"
+    echo "   cmk set apikey YOUR-API-KEY"
+    echo "   cmk set secretkey YOUR-SECRET-KEY"
+    echo "   cmk set display table"
+    echo ""
+    echo "3. Test connection:"
+    echo "   cmk list zones"
     echo ""
 }
 
@@ -234,14 +242,9 @@ main() {
     log_info "Starting CloudStack Secondary Storage Registration..."
     
     check_cloudmonkey
-    
-    # Show help if no args
-    if [[ $# -eq 0 ]]; then
-        print_api_key_help
-    fi
+    check_cloudmonkey_config
     
     get_user_input
-    configure_cloudmonkey
     test_connection
     
     zone_id=$(get_zone_id)
