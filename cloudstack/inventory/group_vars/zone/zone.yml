@@ -73,14 +73,14 @@ cloudstack_hosts:
     pod_name: "Internal"
     ip: "10.15.0.117"
     username: "root"
-    password: "{{ vault_kvm_host_password | default('qhdks') }}"
+    password: "{{ vault_kvm_host_password | default('ubuntu') }}"
   
 
 # Primary Storages 설정 (리스트)
 # 만약, 스크립트를 이용하여 NFS 서버를 Zone 혹은 Cluster에 추가하려는 경우,
 # cloudstack-infra/mgmt-node/nfs-server 내의 register-primary-storage.sh 스크립트를 참고
 cloudstack_primary_storages:
-  - name: "banana-primary"
+  - name: "test-primary"
     cluster_name: "testbed"
     pod_name: "Internal"
     server: "10.10.0.118"
@@ -91,7 +91,7 @@ cloudstack_primary_storages:
 # 만약, 스크립트를 이용하여 NFS 서버를 Zone 혹은 Cluster에 추가하려는 경우,
 # cloudstack-infra/mgmt-node/nfs-server 내의 register-secondary-storage.sh 스크립트를 참고
 cloudstack_secondary_storages:
-  - name: "banana-secondary"
+  - name: "test-secondary"
     server: "10.10.0.118"
     path: "/export/secondary"
     provider: "NFS"
