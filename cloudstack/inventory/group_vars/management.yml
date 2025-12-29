@@ -2,10 +2,6 @@
 # Management Server 설정
 management_server_ip: "{{ ansible_host }}"
 
-# Vault 변수
-vault_mysql_root_password: "qhdksAdmin!23"
-vault_cloudstack_db_password: "qhdksAdmin!23"
-
 # 데이터베이스 연결 정보
 db_host: "{{ hostvars[groups['database'][0]]['ansible_host'] }}"
 db_port: 3306
