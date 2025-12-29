@@ -309,34 +309,6 @@
         msg: "{{ bridge_status.stdout_lines if bridge_status.rc == 0 else ['네트워크가 재설정되었습니다. 연결이 끊긴 경우 새 IP로 재연결하세요.'] }}"
       when: bridge_status.stdout_lines is defined
 
-    - name: Save network configuration to host_vars
-      delegate_to: localhost
-      become: no
-      copy:
-        content: |
-          ---
-          # Auto-detected network configuration
-          # Generated on: {{ ansible_date_time.iso8601 }}
-          # Host: {{ ansible_hostname }}
-          
-          # Public Network ({{ public_bridge }}) - 공인 IP, 외부 접근
-          public_interface: {{ detected_public_interface }}
-          public_ip: {{ detected_public_ip }}
-          public_netmask: {{ detected_public_netmask }}
-          default_gateway: {{ detected_gateway.stdout }}
-          
-          # Management Network ({{ management_bridge }}) - 내부 통신
-          management_interface: {{ detected_management_interface }}
-          management_ip: {{ detected_management_ip }}
-          management_netmask: {{ detected_management_netmask }}
-          
-          # Network already configured
-          network_configured: true
-        dest: "host_vars/{{ inventory_hostname }}.yml"
-        mode: '0644'
-      when: bridge_status.rc == 0
-      ignore_errors: yes
-
     - name: Final status
       debug:
         msg:
@@ -349,6 +321,5 @@
           - "║  {{ management_bridge }} (Management): {{ detected_management_ip }}"
           - "║  {{ public_bridge }} (Public): {{ detected_public_ip }}"
           - "║"
-          - "║  설정이 host_vars/{{ inventory_hostname }}.yml에 저장되었습니다."
           - "╚════════════════════════════════════════════════════════════╝"
       when: bridge_status.rc == 0

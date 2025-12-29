@@ -7,13 +7,13 @@
 cs_api_url: "http://{{ hostvars[groups['management'][0]]['ansible_host'] }}:8080/client/api"
 
 # Web UI 로그인 -> 우측 상단 프로필 -> profile 클릭 -> 우측 상단에 Generate API Keys 클릭
-cs_api_key: ""  
-cs_api_secret: ""  
+cs_api_key: "jltEU_Zg96Ddy0w0-RR2jcxuejTlHMsAhdUKnzMA6RH--9A7WGi7GhqrReCSXwmbRF7nqmI4Hc1l0LjvxLWTRw"  
+cs_api_secret: "E5ZbR19POzUdlkYOoG1ZzBMZRAAv1tbdSYWGjNhb2owB1ajgxA6fOYQ2G53FsDrYm1bW_7zU7_EeZ0MbSU5qiQ"  
 
 # Zone 설정 (단일 Zone)
-zone_name: "EXAMPLE-ZONE"
-zone_dns1: ""
-zone_dns2: ""
+zone_name: "TEST"
+zone_dns1: "8.8.8.8"
+zone_dns2: "8.8.4.4"
 zone_internal_dns1: ""
 zone_internal_dns2: ""
 
@@ -21,7 +21,7 @@ zone_internal_dns2: ""
 zone_network_type: "Advanced"
 # Zone_Guest_CIDR 설정 (Advanced 네트워크에서 필요)
 # Isolate Guest 트래픽용 CIDR 블록으로 사용되므로, Public IP 대역과 겹치지 않도록 주의
-zone_guest_cidr: ""
+zone_guest_cidr: "192.168.0.0/24"
 
 # Physical Networks 설정 (리스트)
 # 구축된 네트워크에 맞게 할당하고자 하는 networklabel을 지정해야 함
@@ -43,8 +43,8 @@ cloudstack_physical_networks:
 # Public IP 범위 설정 (System VM 및 Public 트래픽용)
 cloudstack_public_ip_ranges:
   - physical_network_name: "PhysicalNetwork"
-    start_ip: "10.10.0.200"
-    end_ip: "10.10.0.210"
+    start_ip: "10.10.0.220"
+    end_ip: "10.10.0.230"
     gateway: "10.10.0.1"
     netmask: "255.255.255.0"
     vlan: "untagged"  
@@ -54,8 +54,8 @@ cloudstack_pods:
   - name: "Internal"
     gateway: "10.15.0.1"
     netmask: "255.255.255.0"
-    start_ip: "10.15.0.100"
-    end_ip: "10.15.0.150"
+    start_ip: "10.15.0.160"
+    end_ip: "10.15.0.170"
 
 # Clusters 설정 (리스트, pod_name 지정 필요)
 cloudstack_clusters:
@@ -71,9 +71,9 @@ cloudstack_hosts:
   - name: "N12"
     cluster_name: "testbed"
     pod_name: "Internal"
-    ip: "10.15.0.114"
+    ip: "10.15.0.117"
     username: "root"
-    password: "{{ vault_kvm_host_password | default('ubuntu') }}"
+    password: "{{ vault_kvm_host_password | default('qhdks') }}"
   
 
 # Primary Storages 설정 (리스트)
@@ -83,7 +83,7 @@ cloudstack_primary_storages:
   - name: "banana-primary"
     cluster_name: "testbed"
     pod_name: "Internal"
-    server: "10.15.0.115"
+    server: "10.10.0.118"
     path: "/export/primary"
     scope: "cluster"
 
@@ -92,6 +92,6 @@ cloudstack_primary_storages:
 # cloudstack-infra/mgmt-node/nfs-server 내의 register-secondary-storage.sh 스크립트를 참고
 cloudstack_secondary_storages:
   - name: "banana-secondary"
-    server: "10.15.0.115"
+    server: "10.10.0.118"
     path: "/export/secondary"
     provider: "NFS"

@@ -102,6 +102,7 @@
   when: db_exists.rc != 0
   register: db_init
   notify: restart cloudstack-management
+  become: yes
   tags:
     - init-db
   
