@@ -54,73 +54,70 @@ Apache CloudStack 클라우드 인프라의 **완전 자동화 배포**를 제�
 
 ```mermaid
 graph TB
-    subgraph AC["Ansible Controller (관리자 작업 환경)"]
-        INV[inventory/hosts<br/>호스트 정의]
-        GV[group_vars/<br/>변수 설정]
-        PB[playbooks/<br/>자동화 스크립트]
-        ROLES[roles/<br/>재사용 컴포넌트]
+    subgraph AC["Ansible Controller"]
+        INV["inventory/hosts<br/>호스트 정의"]
+        GV["group_vars/<br/>변수 설정"]
+        PB["playbooks/<br/>자동화 스크립트"]
+        ROLES["roles/<br/>재사용 컴포넌트"]
     end
 
     subgraph NET["CloudStack Infrastructure"]
-        subgraph MN["Management Network (10.15.0.0/24) - cloudbr0"]
-            MN_DESC["내부 관리 트래픽<br/>Storage 트래픽<br/>Pod IP: 10.15.0.160-170"]
+        subgraph MN["Management Network - cloudbr0"]
+            MN_DESC["10.15.0.0/24<br/>내부 관리 트래픽<br/>Storage 트래픽"]
         end
         
-        subgraph PN["Public Network (10.10.0.0/24) - cloudbr1"]
-            PN_DESC["Guest VM 외부 통신<br/>Public IP: 10.10.0.220-230<br/>System VM (SSVM, CPVM)"]
+        subgraph PubNet["Public Network - cloudbr1"]
+            PN_DESC["10.10.0.0/24<br/>Guest VM 외부 통신<br/>Public IP: 10.10.0.220-230"]
         end
         
-        subgraph MGMT["Management Node<br/>10.10.0.116"]
+        subgraph MGMT["Management Node"]
             MGMT_UI["Web UI :8080"]
             MGMT_SRV["CloudStack Mgmt"]
             MGMT_USAGE["Usage Server"]
             MGMT_TPL["SystemVM Template"]
-            MGMT_JAVA["Java 11"]
         end
         
-        subgraph DB["Database Node<br/>10.10.0.116"]
-            DB_MYSQL["MySQL 8.0<br/>Port: 3306<br/>bind: 0.0.0.0"]
+        subgraph DB["Database Node"]
+            DB_MYSQL["MySQL 8.0<br/>Port: 3306"]
             DB_CLOUD["cloud DB"]
             DB_USAGE["cloud_usage DB"]
         end
         
-        subgraph NFS["NFS Storage<br/>10.10.0.118"]
-            NFS_PRI["/export/primary<br/>(Primary Storage)"]
-            NFS_SEC["/export/secondary<br/>(Secondary Storage)"]
+        subgraph StorageNFS["NFS Storage"]
+            NFS_PRI["/export/primary"]
+            NFS_SEC["/export/secondary"]
         end
         
-        subgraph KVM1["KVM Host 1<br/>10.10.0.117"]
+        subgraph KVM1["KVM Host 1"]
             KVM1_Q["KVM/QEMU"]
             KVM1_L["libvirtd"]
             KVM1_A["CloudStack Agent"]
-            KVM1_BR["cloudbr0, cloudbr1"]
-            KVM1_VM["Guest VMs<br/>(VXLAN VNI)"]
+            KVM1_VM["Guest VMs"]
         end
         
-        subgraph KVMN["KVM Host N<br/>10.10.0.xxx"]
+        subgraph KVMN["KVM Host N"]
             KVMN_Q["KVM/QEMU"]
             KVMN_L["libvirtd"]
             KVMN_A["CloudStack Agent"]
-            KVMN_BR["cloudbr0, cloudbr1"]
-            KVMN_VM["Guest VMs<br/>(VXLAN VNI)"]
+            KVMN_VM["Guest VMs"]
         end
     end
 
-    AC -.->|SSH (Ansible)| NET
+    AC -.->|SSH Ansible| NET
     MGMT -.-> DB
-    MGMT -.-> NFS
+    MGMT -.-> StorageNFS
     MGMT -.-> KVM1
     MGMT -.-> KVMN
-    KVM1 -.->|NFS Mount| NFS
-    KVMN -.->|NFS Mount| NFS
+    KVM1 -.->|NFS Mount| StorageNFS
+    KVMN -.->|NFS Mount| StorageNFS
 
     style AC fill:#e1f5ff
     style NET fill:#fff4e6
     style MN fill:#e8f5e9
-    style PN fill:#fce4ec
+    style PubNet fill:#fce4ec
     style MGMT fill:#f3e5f5
     style DB fill:#e0f2f1
-    style NFS fill:#fff9c4
+    style StorageNFS fill:#fff9c4
     style KVM1 fill:#ede7f6
     style KVMN fill:#ede7f6
 ```
@@ -129,59 +126,61 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph ZONE["Zone: TEST<br/>Network Type: Advanced (VXLAN)<br/>Guest CIDR: 192.168.0.0/24"]
-        subgraph PN["Physical Network: PhysicalNetwork"]
-            TT["Traffic Types:<br/>━━━━━━━━━━━━━━━━<br/>Management (cloudbr0) - 10.15.0.0/24<br/>Guest (cloudbr1) - VXLAN VNI: 5000-6000<br/>Public (cloudbr1) - 10.10.0.220-230<br/>Storage (cloudbr0)"]
+    subgraph ZONE["Zone: TEST - Advanced VXLAN"]
+        subgraph PhyNet["Physical Network"]
+            TT["Traffic Types:<br/>Management - cloudbr0<br/>Guest - cloudbr1 VXLAN<br/>Public - cloudbr1<br/>Storage - cloudbr0"]
         end
         
-        subgraph POD["Pod: Internal<br/>Gateway: 10.15.0.1<br/>Netmask: 255.255.255.0<br/>IP Range: 10.15.0.160-170"]
-            subgraph CLUSTER["Cluster: testbed<br/>Hypervisor: KVM<br/>Type: CloudManaged"]
-                HOST["Host: N12<br/>(10.15.0.117)"]
-                PS["Primary Storage:<br/>banana-primary (NFS)<br/>10.10.0.118:/export/primary<br/>Scope: cluster"]
+        subgraph POD["Pod: Internal"]
+            PodInfo["Gateway: 10.15.0.1<br/>IP Range: 10.15.0.160-170"]
+            
+            subgraph CLUSTER["Cluster: testbed"]
+                HOST["Host: N12<br/>10.15.0.117"]
+                PriStorage["Primary Storage<br/>banana-primary<br/>10.10.0.118:/export/primary"]
             end
         end
         
-        SS["Secondary Storage:<br/>banana-secondary (NFS)<br/>10.10.0.118:/export/secondary<br/>Provider: NFS"]
+        SecStorage["Secondary Storage<br/>banana-secondary<br/>10.10.0.118:/export/secondary"]
     end
 
     style ZONE fill:#e3f2fd
-    style PN fill:#f3e5f5
+    style PhyNet fill:#f3e5f5
     style POD fill:#e8f5e9
     style CLUSTER fill:#fff3e0
     style HOST fill:#fce4ec
-    style PS fill:#fff9c4
-    style SS fill:#fff9c4
+    style PriStorage fill:#fff9c4
+    style SecStorage fill:#fff9c4
 ```
 
 ### 데이터 흐름도
 
 ```mermaid
 graph LR
-    USER["사용자<br/>(Web UI)"]
-    MGMT["Management Server<br/>:8080"]
-    DB["MySQL DB<br/>• cloud<br/>• cloud_usage"]
-    KVM["KVM Hosts<br/>• Agent<br/>• libvirtd"]
-    NFS["NFS Storage<br/>• Primary<br/>• Secondary"]
+    USER["사용자<br/>Web UI"]
+    MGMT["Management Server<br/>Port 8080"]
+    DB["MySQL DB<br/>cloud<br/>cloud_usage"]
+    KVM["KVM Hosts<br/>Agent<br/>libvirtd"]
+    StorageNode["NFS Storage<br/>Primary<br/>Secondary"]
     
     USER -->|API Requests| MGMT
     MGMT -->|Responses| USER
     MGMT --> DB
     MGMT --> KVM
-    MGMT --> NFS
-    KVM -->|NFS Mount| NFS
+    MGMT --> StorageNode
+    KVM -->|NFS Mount| StorageNode
 
     subgraph TRAFFIC["Traffic Isolation"]
-        MT["Management Traffic (cloudbr0)<br/>Mgmt Server ↔ Hypervisor ↔ Storage ↔ SystemVMs"]
-        GT["Guest Traffic (cloudbr1 + VXLAN)<br/>VM ↔ Virtual Router ↔ Internet"]
-        PT["Public Traffic (cloudbr1)<br/>Public IPs, NAT, Load Balancer"]
-        ST["Storage Traffic (cloudbr0)<br/>Hypervisor ↔ NFS Storage"]
+        MT["Management Traffic<br/>cloudbr0"]
+        GT["Guest Traffic<br/>cloudbr1 + VXLAN"]
+        PT["Public Traffic<br/>cloudbr1"]
+        ST["Storage Traffic<br/>cloudbr0"]
     end
 
     style USER fill:#e1f5ff
     style MGMT fill:#f3e5f5
     style DB fill:#e0f2f1
     style KVM fill:#ede7f6
-    style NFS fill:#fff9c4
+    style StorageNode fill:#fff9c4
     style TRAFFIC fill:#fff4e6
     style MT fill:#e8f5e9
     style GT fill:#fce4ec
