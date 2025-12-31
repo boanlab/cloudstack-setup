@@ -11,7 +11,7 @@ Apache CloudStack 설치를 자동화하는 Ansible 플레이북 프로젝트입
 이 프로젝트는 **2개의 독립적인 물리 네트워크**를 사용하는 CloudStack Advanced Zone을 구성한다.
 
 #### 1. CloudStack Public Network (cloudbr0)
-- **용도**: Guest VM 트래픽, Public IP, System VM (SSVM, CPVM)
+- **용도**: Guest VM 트래픽, Public IP, System VM (Sec-Storage-VM, VNC-PROXY-VM)
 - **CIDR**: 10.10.0.0/16 (예시)
 - **Traffic Types**: Guest, Public
 - **특징**: 

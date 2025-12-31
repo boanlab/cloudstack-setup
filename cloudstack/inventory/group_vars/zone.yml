@@ -7,8 +7,8 @@
 cs_api_url: "http://{{ hostvars[groups['management'][0]]['ansible_host'] }}:8080/client/api"
 
 # Web UI 로그인 -> 우측 상단 프로필 -> profile 클릭 -> 우측 상단에 Generate API Keys 클릭
-cs_api_key: "Fjmc7cfxf-XhRmGkoSjETykBsBSdpyzAdXhw5iqx9hAWRuQ4i_wkSuagdu38yfH5DU9LQmYV_hpn8ei8vKCS6A"  
-cs_api_secret: "rpTPhQ1eCDodZLQfoDWsf-sIuXHELdNRO8pXF3P1NmVUBIIxKnhmQfbeflZtLHsc_Cr32WVA25rd9j32onphmA"  
+cs_api_key: ""  
+cs_api_secret: ""  
 
 # Zone 설정 (단일 Zone)
 zone_name: "TEST"
