@@ -1,7 +1,5 @@
 # CloudStack Ansible 프로젝트 구조
 
-## 생성 완료된 파일들
-
 ### 설정 파일
 - `ansible.cfg` - Ansible 기본 설정
 - `.gitignore` - Git 제외 파일

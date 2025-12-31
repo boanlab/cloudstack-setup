@@ -51,217 +51,11 @@ Apache CloudStack 클라우드 인프라의 **완전 자동화 배포**를 제�
 ## 아키텍처
 
 ### 전체 시스템 구성도
-
-```mermaid
-graph TB
-    subgraph AC["Ansible Controller"]
-        INV["inventory/hosts<br/>호스트 정의"]
-        GV["group_vars/<br/>변수 설정"]
-        PB["playbooks/<br/>자동화 스크립트"]
-        ROLES["roles/<br/>재사용 컴포넌트"]
-    end
-
-    subgraph NET["CloudStack Infrastructure"]
-        subgraph MN["Management Network - cloudbr0"]
-            MN_DESC["10.15.0.0/24<br/>내부 관리 트래픽<br/>Storage 트래픽"]
-        end
-        
-        subgraph PubNet["Public Network - cloudbr1"]
-            PN_DESC["10.10.0.0/24<br/>Guest VM 외부 통신<br/>Public IP: 10.10.0.220-230"]
-        end
-        
-        subgraph MGMT["Management Node"]
-            MGMT_UI["Web UI :8080"]
-            MGMT_SRV["CloudStack Mgmt"]
-            MGMT_USAGE["Usage Server"]
-            MGMT_TPL["SystemVM Template"]
-        end
-        
-        subgraph DB["Database Node"]
-            DB_MYSQL["MySQL 8.0<br/>Port: 3306"]
-            DB_CLOUD["cloud DB"]
-            DB_USAGE["cloud_usage DB"]
-        end
-        
-        subgraph StorageNFS["NFS Storage"]
-            NFS_PRI["/export/primary"]
-            NFS_SEC["/export/secondary"]
-        end
-        
-        subgraph KVM1["KVM Host 1"]
-            KVM1_Q["KVM/QEMU"]
-            KVM1_L["libvirtd"]
-            KVM1_A["CloudStack Agent"]
-            KVM1_VM["Guest VMs"]
-        end
-        
-        subgraph KVMN["KVM Host N"]
-            KVMN_Q["KVM/QEMU"]
-            KVMN_L["libvirtd"]
-            KVMN_A["CloudStack Agent"]
-            KVMN_VM["Guest VMs"]
-        end
-    end
-
-    AC -.->|SSH Ansible| NET
-    MGMT -.-> DB
-    MGMT -.-> StorageNFS
-    MGMT -.-> KVM1
-    MGMT -.-> KVMN
-    KVM1 -.->|NFS Mount| StorageNFS
-    KVMN -.->|NFS Mount| StorageNFS
-
-    style AC fill:#e1f5ff
-    style NET fill:#fff4e6
-    style MN fill:#e8f5e9
-    style PubNet fill:#fce4ec
-    style MGMT fill:#f3e5f5
-    style DB fill:#e0f2f1
-    style StorageNFS fill:#fff9c4
-    style KVM1 fill:#ede7f6
-    style KVMN fill:#ede7f6
-```
+![Architecture ](/asset/system-architecture.png)
 
 ### CloudStack Zone 아키텍처
 
-```mermaid
-graph TB
-    subgraph ZONE["Zone: TEST - Advanced VXLAN"]
-        subgraph PhyNet["Physical Network"]
-            TT["Traffic Types:<br/>Management - cloudbr0<br/>Guest - cloudbr1 VXLAN<br/>Public - cloudbr1<br/>Storage - cloudbr0"]
-        end
-        
-        subgraph POD["Pod: Internal"]
-            PodInfo["Gateway: 10.15.0.1<br/>IP Range: 10.15.0.160-170"]
-            
-            subgraph CLUSTER["Cluster: testbed"]
-                HOST["Host: N12<br/>10.15.0.117"]
-                PriStorage["Primary Storage<br/>banana-primary<br/>10.10.0.118:/export/primary"]
-            end
-        end
-        
-        SecStorage["Secondary Storage<br/>banana-secondary<br/>10.10.0.118:/export/secondary"]
-    end
-
-    style ZONE fill:#e3f2fd
-    style PhyNet fill:#f3e5f5
-    style POD fill:#e8f5e9
-    style CLUSTER fill:#fff3e0
-    style HOST fill:#fce4ec
-    style PriStorage fill:#fff9c4
-    style SecStorage fill:#fff9c4
-```
-
-### 데이터 흐름도
-
-```mermaid
-graph LR
-    USER["사용자<br/>Web UI"]
-    MGMT["Management Server<br/>Port 8080"]
-    DB["MySQL DB<br/>cloud<br/>cloud_usage"]
-    KVM["KVM Hosts<br/>Agent<br/>libvirtd"]
-    StorageNode["NFS Storage<br/>Primary<br/>Secondary"]
-    
-    USER -->|API Requests| MGMT
-    MGMT -->|Responses| USER
-    MGMT --> DB
-    MGMT --> KVM
-    MGMT --> StorageNode
-    KVM -->|NFS Mount| StorageNode
-
-    subgraph TRAFFIC["Traffic Isolation"]
-        MT["Management Traffic<br/>cloudbr0"]
-        GT["Guest Traffic<br/>cloudbr1 + VXLAN"]
-        PT["Public Traffic<br/>cloudbr1"]
-        ST["Storage Traffic<br/>cloudbr0"]
-    end
-
-    style USER fill:#e1f5ff
-    style MGMT fill:#f3e5f5
-    style DB fill:#e0f2f1
-    style KVM fill:#ede7f6
-    style StorageNode fill:#fff9c4
-    style TRAFFIC fill:#fff4e6
-    style MT fill:#e8f5e9
-    style GT fill:#fce4ec
-    style PT fill:#e3f2fd
-    style ST fill:#fff3e0
-```
-
-### 네트워크 자동 설정 프로세스
-
-```mermaid
-flowchart TD
-    START([시작: 00-setup-network.yml])
-    CIDR[CIDR 기반 인터페이스 자동 감지<br/>public_network_cidr: 10.10.0.0/24<br/>management_network_cidr: 10.15.0.0/24]
-    SCAN[각 호스트의 네트워크 인터페이스 스캔<br/>ip -4 addr show]
-    MATCH[Python ipaddress 모듈로 CIDR 매칭<br/>10.10.0.116 → Public → ens3<br/>10.15.0.116 → Management → ens4]
-    CONFIG[Netplan 브리지 설정 생성<br/>cloudbr0 ← ens4<br/>cloudbr1 ← ens3]
-    APPLY[Netplan 적용<br/>netplan apply]
-    WARN[⚠️ 연결 일시 중단 가능]
-    VERIFY[브리지 검증 및 상태 출력]
-    END([완료])
-
-    START --> CIDR
-    CIDR --> SCAN
-    SCAN --> MATCH
-    MATCH --> CONFIG
-    CONFIG --> APPLY
-    APPLY --> WARN
-    WARN --> VERIFY
-    VERIFY --> END
-
-    style START fill:#4caf50,color:#fff
-    style END fill:#4caf50,color:#fff
-    style WARN fill:#ff9800,color:#fff
-    style CIDR fill:#e3f2fd
-    style SCAN fill:#f3e5f5
-    style MATCH fill:#e8f5e9
-    style CONFIG fill:#fff3e0
-    style APPLY fill:#fce4ec
-    style VERIFY fill:#e0f2f1
-```
-
-### 설치 프로세스 순서
-
-```mermaid
-flowchart TD
-    START([Ansible Controller 준비])
-    P0[Phase 0: 설정 파일 준비<br/>inventory/hosts<br/>group_vars/vault.yml]
-    P1[Phase 1: NFS Storage 설정<br/>setup-nfs-storage.sh]
-    P2[Phase 2: 네트워크 브리지 설정<br/>00-setup-network.yml]
-    P3[Phase 3: 공통 준비<br/>01-prepare-common.yml]
-    P4[Phase 4: Database 설치<br/>02-setup-database.yml]
-    P5[Phase 5: Management 설치<br/>03-setup-management.yml]
-    P6[Phase 6: KVM Hosts 설치<br/>04-setup-kvm-hosts.yml]
-    P7[Phase 7: Web UI 접속<br/>API Key 생성]
-    P8[Phase 8: Zone 설정<br/>05-setup-zone.yml]
-    END([설치 완료])
-
-    START --> P0
-    P0 --> P1
-    P1 --> P2
-    P2 --> P3
-    P3 --> P4
-    P4 --> P5
-    P5 --> P6
-    P6 --> P7
-    P7 --> P8
-    P8 --> END
-
-    style START fill:#4caf50,color:#fff
-    style END fill:#4caf50,color:#fff
-    style P0 fill:#e3f2fd
-    style P1 fill:#fff9c4
-    style P2 fill:#e8f5e9
-    style P3 fill:#f3e5f5
-    style P4 fill:#e0f2f1
-    style P5 fill:#fff3e0
-    style P6 fill:#ede7f6
-    style P7 fill:#fce4ec
-    style P8 fill:#e1f5ff
-```
-
+![Zone Architecture](/asset/zone-architecture.png)
 ---
 
 ## 디렉토리 구조
@@ -274,14 +68,14 @@ cloudstack-infra/
 ├── README.md                          # 프로젝트 소개 및 빠른 시작 가이드
 ├── DOCUMENTATION.md                   # 이 파일 (상세 문서)
 │
-├── cloudstack/                        # ⭐ Ansible 자동화 메인 디렉토리
+├── cloudstack/                        # Ansible 자동화 메인 디렉토리
 │   ├── ansible.cfg                    # Ansible 설정 (SSH 설정, 로그 등)
 │   ├── README.md                      # Ansible 플레이북 사용 가이드
 │   ├── INSTALL.md                     # 단계별 설치 가이드
 │   ├── PROJECT_SUMMARY.md             # 프로젝트 구조 요약
 │   ├── setup-ansible-controller.sh    # Ansible Controller 초기 설정 스크립트
 │   │
-│   ├── inventory/                     # 📦 인벤토리 및 변수
+│   ├── inventory/                     # 인벤토리 및 변수
 │   │   ├── hosts                      # 호스트 정의 (실제 서버 IP)
 │   │   ├── hosts.example              # 호스트 정의 예시
 │   │   │
@@ -295,8 +89,8 @@ cloudstack-infra/
 │   │       ├── kvm-hosts.yml          # KVM Hypervisor 설정
 │   │       └── zone.yml               # CloudStack Zone 설정 (중요!)
 │   │
-│   ├── playbooks/                     # 🎭 Ansible Playbooks
-│   │   ├── site.yml                   # 📌 전체 설치 메인 플레이북
+│   ├── playbooks/                     # Ansible Playbooks
+│   │   ├── site.yml                   # 전체 설치 메인 플레이북
 │   │   │
 │   │   ├── 00-setup-network.yml       # 네트워크 브리지 자동 설정
 │   │   ├── 01-prepare-common.yml      # 공통 준비 (NTP, 패키지 등)
@@ -311,7 +105,7 @@ cloudstack-infra/
 │   │   ├── verify-kvm-hosts.yml       # KVM 호스트 검증
 │   │   └── setup-network-interactive.yml  # 대화형 네트워크 설정
 │   │
-│   └── roles/                         # 🎯 Ansible Roles (재사용 컴포넌트)
+│   └── roles/                         # Ansible Roles (재사용 컴포넌트)
 │       │
 │       ├── common/                    # 공통 설정 Role
 │       │   ├── tasks/main.yml         # 기본 패키지, NTP, Chrony 설정
@@ -339,12 +133,12 @@ cloudstack-infra/
 │           │   └── netplan-bridge.yaml.j2  # 네트워크 브리지 템플릿
 │           └── meta/main.yml
 │
-├── storage-node/                      # 💾 NFS Storage 독립 설치
+├── storage-node/                      # NFS Storage 독립 설치
 │   └── nfs-server/
 │       └── setup-nfs-storage.sh       # NFS 서버 자동 설치 스크립트
 │                                      # (디스크 파티션, 포맷, export 설정)
 │
-└── mgmt-node/                         # 🛠️ Management 노드 유틸리티
+└── mgmt-node/                         # Management 노드 유틸리티
     ├── install-cloudmonkey.sh         # CloudMonkey CLI 설치 스크립트
     └── nfs-server/
         ├── register-primary-storage.sh    # Primary Storage 등록
@@ -360,11 +154,11 @@ cloudstack-infra/
 | `inventory/hosts` | 실제 서버 IP 주소 정의 | ✅ 필수 |
 | `group_vars/all/all.yml` | CloudStack 버전, 네트워크 CIDR, 브리지 이름 | ✅ 필수 |
 | `group_vars/all/vault.yml` | 암호화된 비밀번호 (MySQL, KVM) | ✅ 필수 |
-| `group_vars/zone.yml` | Zone 설정 (API Key, Pod, Cluster, Storage) | ✅ 설치 후 |
+| `group_vars/zone.yml` | Zone 설정 (API Key, Pod, Cluster, Storage) | ✅ 시나리오 (01 ~ 04) 설치 후 |
 | `group_vars/management.yml` | NFS 서버 IP, Storage Path | ✅ 필수 |
 
 #### 🎭 핵심 Playbook
-
+> Ansible Playbook 실행하기 전에 NFS 노드 세팅이 완료되어야 하위 `03-setup-management.yml` 수행 중에 문제가 발생하지 않는다. 
 | Playbook | 실행 순서 | 작업 내용 |
 |---------|---------|----------|
 | `site.yml` | Main | 전체 설치 프로세스 오케스트레이션 |
