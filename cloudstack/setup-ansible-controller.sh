@@ -144,10 +144,68 @@ generate_ssh_key() {
     if [[ "$response" == "y" ]]; then
         ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
         log_info "SSH key generated"
-        echo ""
-        log_info "Copy this key to your target servers:"
-        echo "  ssh-copy-id user@target-server"
     fi
+}
+
+copy_ssh_keys() {
+    log_info "Setting up SSH key authentication..."
+    
+    if [[ ! -f ~/.ssh/id_rsa.pub ]]; then
+        log_error "SSH public key not found. Please generate one first."
+        return 1
+    fi
+    
+    if [[ ! -f inventory/hosts ]]; then
+        log_warn "inventory/hosts not found. Skipping SSH key distribution."
+        return 0
+    fi
+    
+    echo ""
+    read -p "Copy SSH keys to all target servers? (y/n): " response
+    if [[ "$response" != "y" ]]; then
+        log_info "Skipping SSH key distribution"
+        return 0
+    fi
+    
+    # Extract all ansible_host IPs from inventory
+    local hosts=$(grep -oP 'ansible_host=\K[0-9.]+' inventory/hosts | sort -u)
+    
+    if [[ -z "$hosts" ]]; then
+        log_warn "No hosts found in inventory"
+        return 0
+    fi
+    
+    # Get ansible_user from inventory (default to root if not found)
+    local ansible_user=$(grep -oP 'ansible_user=\K\w+' inventory/hosts | head -1)
+    ansible_user=${ansible_user:-root}
+    
+    echo ""
+    log_info "Found the following hosts:"
+    echo "$hosts"
+    echo ""
+    log_info "User: $ansible_user"
+    echo ""
+    read -s -p "Enter password for $ansible_user: " password
+    echo ""
+    echo ""
+    
+    local success=0
+    local failed=0
+    
+    for host in $hosts; do
+        log_info "Copying SSH key to $ansible_user@$host..."
+        
+        if sshpass -p "$password" ssh-copy-id -o StrictHostKeyChecking=no "$ansible_user@$host" 2>/dev/null; then
+            log_info "✓ Successfully copied key to $host"
+            ((success++))
+        else
+            log_error "✗ Failed to copy key to $host"
+            ((failed++))
+        fi
+    done
+    
+    echo ""
+    log_info "SSH key distribution complete: $success succeeded, $failed failed"
 }
 
 test_connection() {
@@ -155,6 +213,13 @@ test_connection() {
     
     if [[ ! -f inventory/hosts ]]; then
         log_warn "Skipping connectivity test (no inventory)"
+        return 0
+    fi
+    
+    echo ""
+    read -p "Test connection to all hosts? (y/n): " response
+    if [[ "$response" != "y" ]]; then
+        log_info "Skipping connectivity test"
         return 0
     fi
     
@@ -188,14 +253,11 @@ print_next_steps() {
     echo "3. Configure network CIDRs in group_vars/all.yml:"
     echo "   vi group_vars/all.yml"
     echo ""
-    echo "4. (Optional) Copy SSH key to target servers:"
-    echo "   ssh-copy-id user@target-server"
+    echo "4. Test connectivity:"
+    echo "   ansible all -i inventory/hosts -m ping"
     echo ""
-    echo "5. Test connectivity:"
-    echo "   ansible all -i inventory/hosts -m ping --ask-pass"
-    echo ""
-    echo "6. Run deployment:"
-    echo "   ansible-playbook -i inventory/hosts playbooks/site.yml --ask-pass --ask-become-pass"
+    echo "5. Run deployment:"
+    echo "   ansible-playbook -i inventory/hosts playbooks/site.yml"
     echo ""
 }
 
@@ -210,6 +272,7 @@ main() {
     check_inventory
     check_vault
     generate_ssh_key
+    copy_ssh_keys
     test_connection
     print_next_steps
 }
