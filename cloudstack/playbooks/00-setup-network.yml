@@ -313,13 +313,14 @@
       debug:
         msg:
           - ""
-          - "╔════════════════════════════════════════════════════════════╗"
-          - "║           네트워크 설정 완료                                  ║"
-          - "╠════════════════════════════════════════════════════════════╣"
-          - "║  Host: {{ ansible_hostname }}"
-          - "║"
-          - "║  {{ management_bridge }} (Management): {{ detected_management_ip }}"
-          - "║  {{ public_bridge }} (Public): {{ detected_public_ip }}"
-          - "║"
-          - "╚════════════════════════════════════════════════════════════╝"
+          - "============================================================"
+          - "          Network Setup Completed Successfully"
+          - "============================================================"
+          - ""
+          - "  Host: {{ ansible_hostname }}"
+          - ""
+          - "  {{ management_bridge }} (Management): {{ detected_management_ip }}"
+          - "  {{ public_bridge }} (Public): {{ detected_public_ip }}"
+          - ""
+          - "============================================================"
       when: bridge_status.rc == 0

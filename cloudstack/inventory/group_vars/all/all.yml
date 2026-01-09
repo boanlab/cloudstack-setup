@@ -1,12 +1,4 @@
 ---
-# CloudStack 버전
-cloudstack_version: "4.19.3.0"
-
-# 패키지 저장소 (ShapeBlue)
-cloudstack_repo_base: "http://packages.shapeblue.com"
-cloudstack_gpg_key_url: "http://packages.shapeblue.com/release.asc"
-cloudstack_apt_repo: "deb [signed-by=/etc/apt/keyrings/cloudstack.gpg] http://packages.shapeblue.com/cloudstack/upstream/debian/4.19 /"
-
 # 네트워크 CIDR 설정
 # Public Network: 공인 IP, SNAT 가능한 대역
 public_network_cidr: "10.10.0.0/24"
@@ -20,9 +12,6 @@ public_bridge: "cloudbr1"       # Public Network 브리지
 
 # 시스템 타임존
 timezone: "Asia/Seoul"
-
-# Java 패키지
-java_package: "openjdk-11-jre-headless"
 
 # DNS 서버
 dns_servers:
@@ -40,5 +29,19 @@ configure_firewall: true
 # SELinux 설정 (CentOS/RHEL)
 selinux_state: permissive
 
+###############
+# 이하 수정 금지 #
+###############
+
 # SystemVM Template URL
 systemvm_template_url: "http://download.cloudstack.org/systemvm/4.19/systemvmtemplate-4.19.1-kvm.qcow2.bz2"
+# Java 패키지
+java_package: "openjdk-11-jre-headless"
+
+# CloudStack 버전
+cloudstack_version: "4.19.3.0"
+
+# 패키지 저장소 (ShapeBlue)
+cloudstack_repo_base: "http://packages.shapeblue.com"
+cloudstack_gpg_key_url: "http://packages.shapeblue.com/release.asc"
+cloudstack_apt_repo: "deb [signed-by=/etc/apt/keyrings/cloudstack.gpg] http://packages.shapeblue.com/cloudstack/upstream/debian/4.19 /"

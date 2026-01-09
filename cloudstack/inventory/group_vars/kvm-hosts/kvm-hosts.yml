@@ -1,23 +1,21 @@
 ---
-# KVM 호스트 설정
-hypervisor_type: "kvm"
 
 # Libvirt 설정
 libvirt_listen_tcp: true
 libvirt_tcp_port: 16509
 
-# 네트워크 브리지
-# group_vars/all.yml의 management_bridge 변수 사용
-network_bridge: "{{ management_bridge }}"
-
-# 네트워크 브리지 자동 설정 여부
-configure_network_bridge: false
-
-# Root SSH 로그인 (CloudStack Management에서 호스트 추가시 필요)
-enable_root_ssh: true
-
 # iptables FORWARD 정책
 configure_iptables_forward: true
 
+###############
+# 이하 수정 금지 #
+###############
+
 # 스토리지
 primary_storage_type: nfs
+
+# KVM 호스트 설정
+hypervisor_type: "kvm"
+
+# Root SSH 로그인 (CloudStack Management에서 호스트 추가시 필요)
+enable_root_ssh: true

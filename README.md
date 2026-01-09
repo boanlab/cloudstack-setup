@@ -61,7 +61,7 @@ CloudStack은 여러 계층으로 구성된 분산 IaaS 플랫폼입니다. 이 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         CloudStack Infrastructure                    │
+│                         CloudStack Infrastructure                   │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────┐      ┌──────────────────┐      ┌──────────────────┐
@@ -127,7 +127,6 @@ CloudStack은 여러 계층으로 구성된 분산 IaaS 플랫폼입니다. 이 
 
 ### CloudStack Zone 구조
 
-![Zone Architecture](/asset/zone-architecture.png)
 
 ```
 Zone (데이터센터)
@@ -265,10 +264,7 @@ CloudStack 설치 및 운영에 도움이 되는 참고 자료입니다.
 - [Apache CloudStack Official Documentation](https://docs.cloudstack.apache.org/)
 - [CloudStack 4.19 Installation Guide](https://docs.cloudstack.apache.org/en/4.19.0.0/installguide/)
 - [CloudStack API Reference](https://cloudstack.apache.org/api/apidocs-4.19/)
-
-### 커뮤니티
-- [CloudStack Mailing Lists](https://cloudstack.apache.org/mailing-lists.html)
-- [CloudStack Slack Channel](https://cloudstack.apache.org/community.html)
+- [CloudStack Networking Guide](https://www.shapeblue.com/a-beginners-guide-to-cloudstack-networking/)
 
 ### 동영상 자료
 <!-- 설치 가이드 동영상 링크를 여기에 추가하세요 -->
@@ -276,11 +272,3 @@ CloudStack 설치 및 운영에 도움이 되는 참고 자료입니다.
 - 네트워크 구성 가이드 (추가 예정)
 - 트러블슈팅 가이드 (추가 예정)
 
-### 유용한 도구
-- [CloudMonkey CLI](https://github.com/apache/cloudstack-cloudmonkey) - CloudStack API 커맨드 라인 도구
-- [Ansible Documentation](https://docs.ansible.com/) - Ansible 공식 문서
-
-### 관련 블로그 및 튜토리얼
-<!-- 관련 블로그 포스트나 튜토리얼 링크를 여기에 추가하세요 -->
-- 블로그 포스트 (추가 예정)
-- 심화 가이드 (추가 예정)

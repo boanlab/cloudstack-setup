@@ -104,8 +104,6 @@ get_user_input() {
     fi
 }
 
-
-
 test_connection() {
     log_info "Testing CloudStack connection..."
     

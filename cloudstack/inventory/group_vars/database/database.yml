@@ -3,8 +3,12 @@
 mysql_root_password: "{{ vault_mysql_root_password }}"
 cloudstack_db_password: "{{ vault_cloudstack_db_password }}"
 
-mysql_version: "8.0"
+# management와 동일한 노드에 설치하는 경우, loopback 인터페이스를 사용해도 무방함
 mysql_bind_address: "0.0.0.0"
+
+###############
+# 이하 수정 금지 #
+###############
 
 # CloudStack 데이터베이스
 cloudstack_databases:
@@ -12,3 +16,5 @@ cloudstack_databases:
   - cloud_usage
 
 mysql_max_connections: 500
+
+mysql_version: "8.0"

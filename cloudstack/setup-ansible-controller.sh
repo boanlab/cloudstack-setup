@@ -25,7 +25,7 @@ log_error() {
 print_header() {
     echo ""
     echo "╔════════════════════════════════════════════════════════════╗"
-    echo "║     CloudStack Ansible Controller Setup Script            ║"
+    echo "║         CloudStack Ansible Controller Setup Script         ║"
     echo "╚════════════════════════════════════════════════════════════╝"
     echo ""
 }
@@ -53,18 +53,6 @@ install_ansible() {
     sudo apt-get install -y ansible
     
     log_info "Ansible installed: $(ansible --version | head -1)"
-}
-
-install_sshpass() {
-    log_info "Installing sshpass (for password authentication)..."
-    
-    if command -v sshpass &> /dev/null; then
-        log_warn "sshpass is already installed"
-        return 0
-    fi
-    
-    sudo apt-get install -y sshpass
-    log_info "sshpass installed"
 }
 
 install_dependencies() {
@@ -148,7 +136,7 @@ generate_ssh_key() {
 }
 
 copy_ssh_keys() {
-    log_info "Setting up SSH key authentication..."
+    log_info "SSH key authentication setup..."
     
     if [[ ! -f ~/.ssh/id_rsa.pub ]]; then
         log_error "SSH public key not found. Please generate one first."
@@ -157,13 +145,6 @@ copy_ssh_keys() {
     
     if [[ ! -f inventory/hosts ]]; then
         log_warn "inventory/hosts not found. Skipping SSH key distribution."
-        return 0
-    fi
-    
-    echo ""
-    read -p "Copy SSH keys to all target servers? (y/n): " response
-    if [[ "$response" != "y" ]]; then
-        log_info "Skipping SSH key distribution"
         return 0
     fi
     
@@ -180,36 +161,36 @@ copy_ssh_keys() {
     ansible_user=${ansible_user:-root}
     
     echo ""
-    log_info "Found the following hosts:"
-    echo "$hosts"
-    echo ""
-    log_info "User: $ansible_user"
-    echo ""
-    read -s -p "Enter password for $ansible_user: " password
-    echo ""
-    echo ""
+    read -p "Copy SSH keys to all target servers now? (y/n): " response
     
-    local success=0
-    local failed=0
+    if [[ "$response" != "y" ]]; then
+        log_info "Skipping SSH key copy. You can manually run:"
+        echo ""
+        for host in $hosts; do
+            echo "  ssh-copy-id $ansible_user@$host"
+        done
+        echo ""
+        return 0
+    fi
+    
+    echo ""
+    log_info "Copying SSH keys to target servers..."
+    log_warn "You will be prompted for password for each server"
+    echo ""
     
     for host in $hosts; do
-        log_info "Copying SSH key to $ansible_user@$host..."
-        
-        if sshpass -p "$password" ssh-copy-id -o StrictHostKeyChecking=no "$ansible_user@$host" 2>/dev/null; then
-            log_info "✓ Successfully copied key to $host"
-            ((success++))
+        log_info "Copying key to $ansible_user@$host..."
+        if ssh-copy-id $ansible_user@$host; then
+            log_info "✓ Key copied to $host"
         else
             log_error "✗ Failed to copy key to $host"
-            ((failed++))
         fi
+        echo ""
     done
-    
-    echo ""
-    log_info "SSH key distribution complete: $success succeeded, $failed failed"
 }
 
 test_connection() {
-    log_info "Testing Ansible connectivity..."
+    log_info "Connectivity test information..."
     
     if [[ ! -f inventory/hosts ]]; then
         log_warn "Skipping connectivity test (no inventory)"
@@ -217,21 +198,9 @@ test_connection() {
     fi
     
     echo ""
-    read -p "Test connection to all hosts? (y/n): " response
-    if [[ "$response" != "y" ]]; then
-        log_info "Skipping connectivity test"
-        return 0
-    fi
-    
+    log_info "To test connectivity to all hosts, run:"
+    echo "  ansible all -i inventory/hosts -m ping"
     echo ""
-    log_info "Running: ansible all -i inventory/hosts -m ping"
-    echo ""
-    
-    if ansible all -i inventory/hosts -m ping; then
-        log_info "All hosts are reachable!"
-    else
-        log_warn "Some hosts are not reachable. Check your inventory and SSH access."
-    fi
 }
 
 print_next_steps() {
@@ -253,10 +222,13 @@ print_next_steps() {
     echo "3. Configure network CIDRs in group_vars/all.yml:"
     echo "   vi group_vars/all.yml"
     echo ""
-    echo "4. Test connectivity:"
+    echo "4. Copy SSH keys to all target servers (manually):"
+    echo "   ssh-copy-id user@target-host"
+    echo ""
+    echo "5. Test connectivity:"
     echo "   ansible all -i inventory/hosts -m ping"
     echo ""
-    echo "5. Run deployment:"
+    echo "6. Run deployment:"
     echo "   ansible-playbook -i inventory/hosts playbooks/site.yml"
     echo ""
 }
@@ -266,7 +238,6 @@ main() {
     print_header
     check_os
     install_ansible
-    install_sshpass
     install_dependencies
     setup_ssh_config
     check_inventory
