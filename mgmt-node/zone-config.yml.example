@@ -1,0 +1,76 @@
+---
+# CloudStack Zone Configuration File
+# Copy this file to zone-config.yml and fill in your values
+# Usage: ./setup-cloudstack-zone.sh zone-config.yml
+
+# CloudStack API Settings
+cloudstack:
+  url: "http://10.10.0.116:8080/client/api"
+  api_key: ""  # Required: Generate from Web UI
+  secret_key: ""  # Required: Generate from Web UI
+
+# Zone Configuration
+zone:
+  name: "TEST"
+  dns1: "8.8.8.8"
+  dns2: "8.8.4.4"
+  internal_dns1: "8.8.8.8"
+  internal_dns2: "8.8.4.4"
+  network_type: "Advanced"  # Basic or Advanced
+  guest_cidr: "192.168.0.0/24"
+
+# Physical Network Configuration
+physical_network:
+  name: "PhysicalNetwork"
+  isolation_method: "VXLAN"  # VLAN, VXLAN, GRE, etc.
+  vlan_range: "5000-6000"  # For VXLAN: VNI range, for VLAN: VLAN ID range
+  
+  # Traffic Type Labels (KVM bridge names)
+  traffic_labels:
+    management: "cloudbr0"
+    guest: "cloudbr1"
+    public: "cloudbr1"
+    storage: "cloudbr0"
+
+# Public IP Range Configuration
+public_ip_range:
+  start_ip: "10.10.0.220"
+  end_ip: "10.10.0.230"
+  gateway: "10.10.0.1"
+  netmask: "255.255.255.0"
+  vlan: "untagged"  # or specific VLAN ID
+
+# Pod Configuration
+pod:
+  name: "Internal"
+  gateway: "10.15.0.1"
+  netmask: "255.255.255.0"
+  start_ip: "10.15.0.160"
+  end_ip: "10.15.0.170"
+
+# Cluster Configuration
+cluster:
+  name: "testbed"
+  hypervisor: "KVM"  # KVM, VMware, XenServer, etc.
+  type: "CloudManaged"  # CloudManaged or ExternalManaged
+
+# Host Configuration (can add multiple hosts)
+hosts:
+  - name: "N12"
+    ip: "10.15.0.117"
+    username: "root"
+    password: ""  # Required: Root password for KVM host
+
+# Primary Storage Configuration
+primary_storage:
+  name: "test-primary"
+  server: "10.15.0.118"
+  path: "/export/primary"
+  scope: "cluster"  # cluster or zone
+
+# Secondary Storage Configuration
+secondary_storage:
+  name: "test-secondary"
+  server: "10.15.0.118"
+  path: "/export/secondary"
+  provider: "NFS"  # NFS, S3, Swift, etc.
