@@ -4,6 +4,15 @@
 
 set -e
 
+# Get actual user when running with sudo
+if [[ -n "$SUDO_USER" ]]; then
+    ACTUAL_USER="$SUDO_USER"
+    ACTUAL_HOME=$(eval echo ~$SUDO_USER)
+else
+    ACTUAL_USER="$USER"
+    ACTUAL_HOME="$HOME"
+fi
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -68,14 +77,15 @@ install_dependencies() {
 }
 
 setup_ssh_config() {
-    log_info "Configuring SSH client..."
+    log_info "Configuring SSH client for user: $ACTUAL_USER..."
     
     # Create SSH config if doesn't exist
-    mkdir -p ~/.ssh
-    chmod 700 ~/.ssh
+    mkdir -p "$ACTUAL_HOME/.ssh"
+    chmod 700 "$ACTUAL_HOME/.ssh"
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/.ssh"
     
-    if [[ ! -f ~/.ssh/config ]]; then
-        cat > ~/.ssh/config <<EOF
+    if [[ ! -f "$ACTUAL_HOME/.ssh/config" ]]; then
+        cat > "$ACTUAL_HOME/.ssh/config" <<EOF
 # SSH Configuration for CloudStack deployment
 Host *
     StrictHostKeyChecking no
@@ -83,8 +93,9 @@ Host *
     ServerAliveInterval 60
     ServerAliveCountMax 3
 EOF
-        chmod 600 ~/.ssh/config
-        log_info "SSH config created"
+        chmod 600 "$ACTUAL_HOME/.ssh/config"
+        chown "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/.ssh/config"
+        log_info "SSH config created at $ACTUAL_HOME/.ssh/config"
     else
         log_warn "SSH config already exists"
     fi
@@ -121,25 +132,25 @@ check_vault() {
 }
 
 generate_ssh_key() {
-    log_info "Checking SSH key..."
+    log_info "Checking SSH key for user: $ACTUAL_USER..."
     
-    if [[ -f ~/.ssh/id_rsa ]]; then
-        log_warn "SSH key already exists"
+    if [[ -f "$ACTUAL_HOME/.ssh/id_rsa" ]]; then
+        log_warn "SSH key already exists at $ACTUAL_HOME/.ssh/id_rsa"
         return 0
     fi
     
     read -p "Generate SSH key? (y/n): " response
     if [[ "$response" == "y" ]]; then
-        ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
-        log_info "SSH key generated"
+        sudo -u "$ACTUAL_USER" ssh-keygen -t rsa -b 4096 -f "$ACTUAL_HOME/.ssh/id_rsa" -N ""
+        log_info "SSH key generated at $ACTUAL_HOME/.ssh/id_rsa"
     fi
 }
 
 copy_ssh_keys() {
     log_info "SSH key authentication setup..."
     
-    if [[ ! -f ~/.ssh/id_rsa.pub ]]; then
-        log_error "SSH public key not found. Please generate one first."
+    if [[ ! -f "$ACTUAL_HOME/.ssh/id_rsa.pub" ]]; then
+        log_error "SSH public key not found at $ACTUAL_HOME/.ssh/id_rsa.pub. Please generate one first."
         return 1
     fi
     
@@ -164,7 +175,7 @@ copy_ssh_keys() {
     read -p "Copy SSH keys to all target servers now? (y/n): " response
     
     if [[ "$response" != "y" ]]; then
-        log_info "Skipping SSH key copy. You can manually run:"
+        log_info "Skipping SSH key copy. You can manually run as $ACTUAL_USER:"
         echo ""
         for host in $hosts; do
             echo "  ssh-copy-id $ansible_user@$host"
@@ -180,7 +191,7 @@ copy_ssh_keys() {
     
     for host in $hosts; do
         log_info "Copying key to $ansible_user@$host..."
-        if ssh-copy-id $ansible_user@$host; then
+        if sudo -u "$ACTUAL_USER" ssh-copy-id -i "$ACTUAL_HOME/.ssh/id_rsa.pub" $ansible_user@$host; then
             log_info "✓ Key copied to $host"
         else
             log_error "✗ Failed to copy key to $host"
@@ -208,6 +219,9 @@ print_next_steps() {
     echo "╔════════════════════════════════════════════════════════════╗"
     echo "║              Setup Complete!                               ║"
     echo "╚════════════════════════════════════════════════════════════╝"
+    echo ""
+    log_info "SSH keys configured for user: $ACTUAL_USER"
+    log_info "SSH key location: $ACTUAL_HOME/.ssh/id_rsa"
     echo ""
     echo "Next steps:"
     echo ""
