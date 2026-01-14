@@ -37,6 +37,29 @@ print_header() {
     echo ""
 }
 
+show_help() {
+    echo "CloudStack Zone Setup Script"
+    echo ""
+    echo "Usage: $0 [OPTIONS] <config-file.yml>"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help     Show this help message"
+    echo ""
+    echo "Arguments:"
+    echo "  config-file.yml    YAML configuration file for zone setup"
+    echo ""
+    echo "Example:"
+    echo "  cp zone-config.yml.example zone-config.yml"
+    echo "  vi zone-config.yml"
+    echo "  $0 zone-config.yml"
+    echo ""
+    echo "Requirements:"
+    echo "  - CloudMonkey (cmk) must be installed"
+    echo "  - yq must be installed for YAML parsing"
+    echo "  - Valid CloudStack API credentials"
+    echo ""
+}
+
 # Configuration variables (no defaults - must be set from YAML)
 CONFIG_FILE=""
 CLOUDSTACK_URL=""
@@ -95,11 +118,19 @@ check_dependencies() {
     
     # Check yq for YAML parsing
     if ! command -v yq &> /dev/null; then
-        log_error "yq is not installed (required for YAML parsing)"
-        log_info "Install with: sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 && sudo chmod +x /usr/local/bin/yq"
-        exit 1
+        log_warn "yq is not installed (required for YAML parsing)"
+        log_info "Installing yq..."
+        
+        if sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 && sudo chmod +x /usr/local/bin/yq; then
+            log_info "✓ yq installed successfully"
+        else
+            log_error "Failed to install yq"
+            log_info "Please install manually: sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 && sudo chmod +x /usr/local/bin/yq"
+            exit 1
+        fi
+    else
+        log_info "✓ yq installed"
     fi
-    log_info "✓ yq installed"
 }
 
 check_config_file() {
@@ -255,8 +286,8 @@ configure_cloudmonkey() {
     cmk set url "$CLOUDSTACK_URL"
     cmk set apikey "$CLOUDSTACK_API_KEY"
     cmk set secretkey "$CLOUDSTACK_SECRET_KEY"
-    cmk set display table
-    cmk set output text
+    cmk set display json
+    cmk set output json
     cmk sync
     
     log_info "CloudMonkey configured successfully"
@@ -264,19 +295,19 @@ configure_cloudmonkey() {
 
 # Helper function to get ID from name
 get_zone_id() {
-    cmk list zones name="$1" filter=id | tail -n 1 | awk '{print $1}'
+    cmk list zones name="$1" filter=id | jq -r '.zone[]?.id // empty' | head -n 1
 }
 
 get_physical_network_id() {
-    cmk list physicalnetworks name="$1" filter=id | tail -n 1 | awk '{print $1}'
+    cmk list physicalnetworks name="$1" filter=id | jq -r '.physicalnetwork[]?.id // empty' | head -n 1
 }
 
 get_pod_id() {
-    cmk list pods name="$1" filter=id | tail -n 1 | awk '{print $1}'
+    cmk list pods name="$1" filter=id | jq -r '.pod[]?.id // empty' | head -n 1
 }
 
 get_cluster_id() {
-    cmk list clusters name="$1" filter=id | tail -n 1 | awk '{print $1}'
+    cmk list clusters name="$1" filter=id | jq -r '.cluster[]?.id // empty' | head -n 1
 }
 
 create_zone() {
@@ -298,7 +329,7 @@ create_zone() {
         internaldns2="$ZONE_INTERNAL_DNS2" \
         networktype="$ZONE_NETWORK_TYPE" \
         guestcidraddress="$ZONE_GUEST_CIDR" \
-        filter=id | tail -n 1 | awk '{print $1}')
+        filter=id | jq -r '.zone.id // empty')
     
     ZONE_ID="$result"
     log_info "Zone created with ID: $ZONE_ID"
@@ -320,7 +351,7 @@ create_physical_network() {
         zoneid="$ZONE_ID" \
         isolationmethods="$ISOLATION_METHOD" \
         vlan="$VLAN_RANGE" \
-        filter=id | tail -n 1 | awk '{print $1}')
+        filter=id | jq -r '.physicalnetwork.id // empty')
     
     PHYSICAL_NETWORK_ID="$result"
     log_info "Physical Network created with ID: $PHYSICAL_NETWORK_ID"
@@ -351,42 +382,65 @@ add_traffic_types() {
 enable_network_service_providers() {
     log_step "Enabling Network Service Providers..."
     
-    # Get provider IDs
-    local vr_provider_id=$(cmk list networkserviceproviders name=VirtualRouter physicalnetworkid="$PHYSICAL_NETWORK_ID" filter=id | tail -n 1 | awk '{print $1}')
-    local sg_provider_id=$(cmk list networkserviceproviders name=SecurityGroupProvider physicalnetworkid="$PHYSICAL_NETWORK_ID" filter=id | tail -n 1 | awk '{print $1}')
-    local vpcvr_provider_id=$(cmk list networkserviceproviders name=VpcVirtualRouter physicalnetworkid="$PHYSICAL_NETWORK_ID" filter=id | tail -n 1 | awk '{print $1}')
+    # List all network service providers for this physical network
+    log_info "Querying network service providers for physical network: $PHYSICAL_NETWORK_ID"
     
-    # Enable Virtual Router
+    # Get VirtualRouter provider ID
+    local vr_provider_id=$(cmk list networkserviceproviders name=VirtualRouter physicalnetworkid="$PHYSICAL_NETWORK_ID" filter=id | jq -r '.networkserviceprovider[]?.id // empty' | head -n 1)
+    
     if [[ -n "$vr_provider_id" ]]; then
-        log_info "Enabling VirtualRouter provider..."
-        cmk update networkserviceprovider id="$vr_provider_id" state=Enabled 2>&1 | grep -v "already enabled" || true
+        log_info "Found VirtualRouter provider (ID: $vr_provider_id)"
+        log_info "Enabling VirtualRouter Network Service Provider..."
         
-        # Get VR element and enable it
-        local vr_element_id=$(cmk list virtualrouterelements nspid="$vr_provider_id" filter=id | tail -n 1 | awk '{print $1}')
+        # Enable the VirtualRouter provider
+        local result=$(cmk update networkserviceprovider id="$vr_provider_id" state=Enabled 2>&1)
+        if echo "$result" | grep -qi "error"; then
+            log_warn "VirtualRouter may already be enabled or error occurred"
+        else
+            log_info "✓ VirtualRouter provider enabled"
+        fi
+        
+        # Configure VirtualRouter element
+        log_info "Configuring VirtualRouter element..."
+        local vr_element_id=$(cmk list virtualrouterelements nspid="$vr_provider_id" filter=id | jq -r '.virtualrouterelement[]?.id // empty' | head -n 1)
         if [[ -n "$vr_element_id" ]]; then
+            log_info "Found VirtualRouter element (ID: $vr_element_id)"
             cmk configure virtualrouterelement id="$vr_element_id" enabled=true 2>&1 | grep -v "already" || true
+            log_info "✓ VirtualRouter element configured"
         fi
+    else
+        log_error "VirtualRouter provider not found for physical network"
+        return 1
     fi
     
-    # Enable Security Group Provider
+    # Get SecurityGroupProvider ID
+    local sg_provider_id=$(cmk list networkserviceproviders name=SecurityGroupProvider physicalnetworkid="$PHYSICAL_NETWORK_ID" filter=id | jq -r '.networkserviceprovider[]?.id // empty' | head -n 1)
+    
     if [[ -n "$sg_provider_id" ]]; then
+        log_info "Found SecurityGroupProvider (ID: $sg_provider_id)"
         log_info "Enabling SecurityGroupProvider..."
-        cmk update networkserviceprovider id="$sg_provider_id" state=Enabled 2>&1 | grep -v "already enabled" || true
+        cmk update networkserviceprovider id="$sg_provider_id" state=Enabled 2>&1 | grep -v "already" || true
+        log_info "✓ SecurityGroupProvider enabled"
     fi
     
-    # Enable VPC Virtual Router
+    # Get VpcVirtualRouter provider ID (for Advanced networking)
+    local vpcvr_provider_id=$(cmk list networkserviceproviders name=VpcVirtualRouter physicalnetworkid="$PHYSICAL_NETWORK_ID" filter=id | jq -r '.networkserviceprovider[]?.id // empty' | head -n 1)
+    
     if [[ -n "$vpcvr_provider_id" ]]; then
-        log_info "Enabling VpcVirtualRouter provider..."
-        cmk update networkserviceprovider id="$vpcvr_provider_id" state=Enabled 2>&1 | grep -v "already enabled" || true
+        log_info "Found VpcVirtualRouter provider (ID: $vpcvr_provider_id)"
+        log_info "Enabling VpcVirtualRouter..."
+        cmk update networkserviceprovider id="$vpcvr_provider_id" state=Enabled 2>&1 | grep -v "already" || true
         
-        # Get VPC VR element and enable it
-        local vpcvr_element_id=$(cmk list virtualrouterelements nspid="$vpcvr_provider_id" filter=id | tail -n 1 | awk '{print $1}')
+        # Configure VPC VR element
+        local vpcvr_element_id=$(cmk list virtualrouterelements nspid="$vpcvr_provider_id" filter=id | jq -r '.virtualrouterelement[]?.id // empty' | head -n 1)
         if [[ -n "$vpcvr_element_id" ]]; then
+            log_info "Found VpcVirtualRouter element (ID: $vpcvr_element_id)"
             cmk configure virtualrouterelement id="$vpcvr_element_id" enabled=true 2>&1 | grep -v "already" || true
+            log_info "✓ VpcVirtualRouter element configured"
         fi
     fi
     
-    log_info "Network service providers enabled"
+    log_info "✓ All network service providers configured successfully"
 }
 
 enable_physical_network() {
@@ -439,7 +493,7 @@ create_pod() {
         netmask="$POD_NETMASK" \
         startip="$POD_START_IP" \
         endip="$POD_END_IP" \
-        filter=id | tail -n 1 | awk '{print $1}')
+        filter=id | jq -r '.pod.id // empty')
     
     POD_ID="$result"
     log_info "Pod created with ID: $POD_ID"
@@ -462,7 +516,7 @@ create_cluster() {
         podid="$POD_ID" \
         hypervisor="$CLUSTER_HYPERVISOR" \
         clustertype="$CLUSTER_TYPE" \
-        filter=id | tail -n 1 | awk '{print $1}')
+        filter=id | jq -r '.cluster[]?.id // empty' | head -n 1)
     
     CLUSTER_ID="$result"
     log_info "Cluster created with ID: $CLUSTER_ID"
@@ -604,20 +658,14 @@ print_summary() {
 
 # Main execution
 main() {
-    print_header
-    check_cloudmonkey
-    configure_cloudmonkey
-    
-    # Zone Setup Sequence
-    create_zone
-    create_physical_network
-    add_traffic_types
-    enable_network_service_providers
-    enable_physical_network
-    add_public_ip_range
-    create_pod
     # Get config file from argument
     CONFIG_FILE="$1"
+    
+    # Check for help flag
+    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+        show_help
+        exit 0
+    fi
     
     print_header
     check_config_file
@@ -643,3 +691,6 @@ main() {
     verify_setup
     print_summary
 }
+
+# Execute main function
+main "$@"

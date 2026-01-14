@@ -5,7 +5,7 @@
 
 # CloudStack API Settings
 cloudstack:
-  url: "http://10.10.0.116:8080/client/api"
+  url: "http://mgmt-ip:8080/client/api"
   api_key: ""  # Required: Generate from Web UI
   secret_key: ""  # Required: Generate from Web UI
 

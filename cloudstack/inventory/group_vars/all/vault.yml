@@ -3,5 +3,5 @@
 # 이 파일을 암호화하려면: ansible-vault encrypt group_vars/vault.yml
 # 편집하려면: ansible-vault edit group_vars/vault.yml
 
-vault_mysql_root_password: "FIX_ME_mysqlRoot!23"
-vault_cloudstack_db_password: "FIX_ME_cloudDB!23"
+vault_mysql_root_password: "FIXME_CHANGE_THIS_PASSWORD"
+vault_cloudstack_db_password: "FIXME_CHANGE_THIS_PASSWORD"
