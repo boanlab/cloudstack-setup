@@ -1,17 +1,5 @@
-# CloudStack Infrastructure
+# CloudStack Setup
 
-<!--
-- 수정사항 기록
-  - 각 방화벽이나 뭔가 내용상 안맞는 것들이 너무 많음 이거 고쳐야함
-  - 메인의 README의 경우에는, README에 소개, 그리고 내부 어떤 md를 참고해야하는지가 정확하게 나와있어야함.
-  - 스크립트가 복잡하다고 했음 -> 스크립트는 스크립트 다워야 하는데
-    - setup-ansible.sh
-    - generate-ssh-copy.sh
-    - 미관적인거 좋음, 근데 매 스크립트마다 다 떠야하는 것들인가. 
-    - Install CloudMonkey에서 CheckSum이 Static하게 되어있는데? 
-      - 그리고 불필요한 정보들을 너무 많이 띄우는 것이 아닌가? 
-      - 짧게 끝날 건데 자꾸 커짐 -> 아키텍처 지원이 왜 많은거야? 
--->
 ## Introduction
 
 This project automates the deployment of Apache CloudStack 4.19 private cloud infrastructure using Ansible. 

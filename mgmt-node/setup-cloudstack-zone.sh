@@ -32,7 +32,7 @@ log_step() {
 print_header() {
     echo ""
     echo "╔════════════════════════════════════════════════════════════╗"
-    echo "║       CloudStack Zone Setup Script (CloudMonkey)          ║"
+    echo "║        CloudStack Zone Setup Script (CloudMonkey)          ║"
     echo "╚════════════════════════════════════════════════════════════╝"
     echo ""
 }
@@ -637,7 +637,7 @@ verify_setup() {
 print_summary() {
     echo ""
     echo "╔════════════════════════════════════════════════════════════╗"
-    echo "║              Zone Setup Complete!                          ║"
+    echo "║                   Zone Setup Complete!                     ║"
     echo "╚════════════════════════════════════════════════════════════╝"
     echo ""
     echo "Zone Information:"
