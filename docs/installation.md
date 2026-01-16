@@ -155,14 +155,14 @@ CloudStack Advanced Zone requires **at least 2 physically separated networks**:
 
 | Node | Management IP (10.15.0.0/24) | Public IP (10.10.0.0/24) |
 |------|------------------------------|--------------------------|
-| Management | 10.15.0.10 | - |
-| Database | 10.15.0.10 | - |
+| Management | 10.15.0.1 | 10.10.0.10 |
+| Database | 10.15.0.1 | 10.10.0.10 |
 | Storage (NFS) | - | 10.10.0.201 |
 | KVM Host 1 | 10.15.0.101 | 10.10.0.101 |
 | KVM Host 2 | 10.15.0.102 | 10.10.0.102 |
-| Gateway | - | 10.10.0.1 |
-| Pod IP Range | 10.15.0.200 - 10.15.0.210 | - |
-| Public IP Range | - | 10.10.0.220 - 10.10.0.230 |
+| Gateway | 10.15.0.1 | 10.10.0.1 |
+| Pod IP Range | 10.15.0.2 - 10.15.0.254 | - |
+| Public IP Range | - | 10.10.100.1 - 10.10.100.254 |
 
 ### Software Requirements
 

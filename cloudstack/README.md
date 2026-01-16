@@ -1,90 +1,89 @@
 # CloudStack Ansible Automation
-<!-->
-- 어떤 스크립트
-    - 설명 
-    - 사용 명령어
--->
-CloudStack 4.19 인프라를 자동으로 배포하는 Ansible 프로젝트입니다.
 
-## 빠른 시작
+Ansible project for automated deployment of CloudStack 4.19 infrastructure.
+
+## Quick Start
 
 ```bash
-# 1. Inventory 설정
+# 0. Prepare Ansible Controller
+./setup-ansible-controller.sh
+
+# 1. Configure inventory
 cp inventory/hosts.example inventory/hosts
 vi inventory/hosts
 
-# 2. 네트워크 및 비밀번호 설정
+# 2. Configure network and passwords
 vi inventory/group_vars/all/all.yml
 vi inventory/group_vars/all/vault.yml
 vi inventory/group_vars/management/management.yml
 
-# 3. Ansible Controller 준비
-./setup-ansible-controller.sh
+# 3. Copy SSH keys to all nodes
+./copy-ssh-keys.sh
 
-# 4. 배포 실행
+# 4. Execute deployment
 ansible-playbook -i inventory/hosts playbooks/site.yml
 ```
 
-> **상세 설치 가이드**: [../docs/installation.md](../docs/installation.md)
+> **Detailed Installation Guide**: [../docs/installation.md](../docs/installation.md)
 
-## Playbook 목록
+## Playbook List
 
-| Playbook | 설명 |
-|----------|------|
-| `site.yml` | 전체 자동 설치 (00~04 단계 통합) |
-| `00-setup-network.yml` | 네트워크 브리지 설정 |
-| `01-prepare-common.yml` | 공통 준비 (NTP, 패키지 등) |
-| `02-setup-database.yml` | MySQL Database 설치 |
-| `03-setup-management.yml` | Management Server 설치 |
-| `04-setup-kvm-hosts.yml` | KVM Hypervisor 설치 |
+| Playbook | Description |
+|----------|-------------|
+| `site.yml` | Complete automated installation (combines steps 00~04) |
+| `00-setup-network.yml` | Configure network bridges |
+| `01-prepare-common.yml` | Common preparation (NTP, packages, etc.) |
+| `02-setup-database.yml` | Install MySQL Database |
+| `03-setup-management.yml` | Install Management Server |
+| `04-setup-kvm-hosts.yml` | Install KVM Hypervisor |
 
-## Inventory 구조
+## Inventory Structure
 
 ```
 inventory/
-├── hosts                          # 서버 IP 주소 정의
-├── hosts.example                  # 예시 파일
+├── hosts                          # Server IP address definitions
+├── hosts.example                  # Example file
 └── group_vars/
     ├── all/
-    │   ├── all.yml               # 공통 설정 (네트워크 CIDR, 버전 등)
-    │   └── vault.yml             # 비밀번호 (암호화 권장)
+    │   ├── all.yml               # Common settings (network CIDR, versions, etc.)
+    │   └── vault.yml             # Passwords (encryption recommended)
     ├── management/
-    │   └── management.yml        # Management Server 설정 (NFS 정보)
+    │   └── management.yml        # Management Server configuration (NFS info)
     ├── database/
-    │   └── database.yml          # Database 설정
+    │   └── database.yml          # Database configuration
     └── kvm-hosts/
-        └── kvm-hosts.yml         # KVM Host 설정
+        └── kvm-hosts.yml         # KVM Host configuration
 ```
 
-## Ansible 명령어
+## Ansible Commands
 
-### 연결 테스트
+### Connection Test
 
 ```bash
-# 모든 노드 Ping 테스트
+# Ping test all nodes
 ansible all -i inventory/hosts -m ping
 
-# 특정 그룹만 테스트
+# Test specific group only
 ansible management -i inventory/hosts -m ping
 ansible kvm-hosts -i inventory/hosts -m ping
 ```
 
-### 임시 명령 실행
+### Execute Ad-hoc Commands
 
 ```bash
-# 서비스 상태 확인
+# Check service status
 ansible management -i inventory/hosts -m shell -a "systemctl status cloudstack-management"
 
-# 디스크 사용량 확인
+# Check disk usage
 ansible all -i inventory/hosts -m shell -a "df -h"
 ```
 
-## 설정 옵션
+## Configuration Options
 
-모든 설정 가능한 옵션과 상세한 설명은 [OPTIONS.md](OPTIONS.md)를 참고하세요.
+For all configurable options and detailed descriptions, see [OPTIONS.md](OPTIONS.md).
 
-## 참고
+## References
 
-- 상세 설치 가이드: [../docs/installation.md](../docs/installation.md)
-- 문제 해결: [../docs/troubleshooting.md](../docs/troubleshooting.md)
-- CloudStack 공식 문서: https://docs.cloudstack.apache.org/
+- Detailed Installation Guide: [../docs/installation.md](../docs/installation.md)
+- Troubleshooting: [../docs/troubleshooting.md](../docs/troubleshooting.md)
+- CloudStack Official Documentation: https://docs.cloudstack.apache.org/

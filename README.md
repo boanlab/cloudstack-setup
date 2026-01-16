@@ -22,8 +22,9 @@ The automation handles complete installation and configuration of Management Ser
 
 ### Project Documentation
 - [Ansible CloudStack Deployment Guide](./cloudstack/README.md)
-- [Installation Guide](../docs/installation.md) - Step-by-step installation guide for deploying CloudStack using this Ansible project.
-- [Troubleshooting Guide](../docs/troubleshooting.md) - Common issues and solutions during installation and operation.
+- [Installation Guide](./docs/installation.md) - Step-by-step installation guide for deploying CloudStack using this Ansible project.
+- [Setup Guide](./mgmt-node/SETUP-GUIDE.md) - Instructions for configuring CloudStack Zones after installation.
+- [Troubleshooting Guide](./docs/troubleshooting.md) - Common issues and solutions during installation and operation.
 
 ### Official Documentation
 - [Apache CloudStack Documentation](https://docs.cloudstack.apache.org/)
@@ -32,7 +33,6 @@ The automation handles complete installation and configuration of Management Ser
 - [CloudStack Networking Guide](https://www.shapeblue.com/a-beginners-guide-to-cloudstack-networking/)
 
 ### Community
-- [Apache CloudStack Mailing Lists](https://cloudstack.apache.org/mailing-lists.html)
 - [CloudStack GitHub Repository](https://github.com/apache/cloudstack)
 
 ---
@@ -40,8 +40,4 @@ The automation handles complete installation and configuration of Management Ser
 ## License
 
 This project is licensed under the Apache License 2.0 - see the LICENSE file for details.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
 
