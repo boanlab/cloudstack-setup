@@ -1,137 +1,141 @@
-# CloudStack 문제 해결 가이드
+# CloudStack Troubleshooting Guide
 
-이 문서는 CloudStack Ansible 자동화 프로젝트 사용 시 발생할 수 있는 문제와 해결 방법을 설명합니다.
+This document explains common issues and solutions when using the CloudStack Ansible automation project.
 
-## 연결 문제
+## Connection Issues
 
-### SSH 연결 실패
+### SSH Connection Failure
 
-**증상:**
-- Ansible playbook 실행 시 "Host unreachable" 또는 "Permission denied" 오류
+**Symptoms:**
+- "Host unreachable" or "Permission denied" error when running Ansible playbook
 
-**해결 방법:**
+**Solution:**
 
 ```bash
-# 1. SSH 직접 연결 테스트
+# 1. Test SSH connection directly
 ssh [ansible_user]@[target-ip]
 
-# 2. SSH 키가 제대로 복사되었는지 확인
+# 2. Verify SSH key is properly copied
 ssh-copy-id [ansible_user]@[target-ip]
 
-# 3. Ansible 연결 테스트 (상세 로그)
+# 3. Test Ansible connection (with verbose logging)
 ansible all -i inventory/hosts -m ping -vvv
 
-# 4. 특정 호스트만 테스트
+# 4. Test specific host only
 ansible management -i inventory/hosts -m ping -vvv
 ```
 
-**확인 사항:**
-- target 서버에서 SSH 서비스가 실행 중인지 확인: `systemctl status sshd`
-- root 로그인 허용 여부 확인: `/etc/ssh/sshd_config`에서 `PermitRootLogin yes`
-- 방화벽에서 SSH 포트(22) 허용 확인: `ufw status` 또는 `firewall-cmd --list-all`
+**Check:**
+- Verify SSH service is running on target server: `systemctl status sshd`
+- Check root login permission: `PermitRootLogin yes` in `/etc/ssh/sshd_config`
+- Also, Check the root password is set correctly if using password authentication.
+- Verify SSH port (22) is allowed in firewall: `ufw status` or `firewall-cmd --list-all`
 
 ---
 
-## Database 문제
+## Database Issues
 
-### MySQL 원격 접속 실패
+### MySQL Remote Connection Failure
 
-**증상:**
-- Management Server에서 Database 서버로 연결 실패
-- "Can't connect to MySQL server" 오류
+**Symptoms:**
+- Connection failure from Management Server to Database server
+- "Can't connect to MySQL server" error
 
-**해결 방법:**
+**Solution:**
 
 ```bash
-# MySQL 바인딩 주소 수정 playbook 실행
+# Run MySQL binding address fix playbook
 ansible-playbook -i inventory/hosts playbooks/fix-mysql-binding.yml
 
-# 또는 수동으로 Database 서버에서 확인
+# Or manually check on Database server
 ssh [database-server]
 sudo vi /etc/mysql/mysql.conf.d/mysqld.cnf
-# bind-address = 0.0.0.0 으로 설정
+# Set bind-address = 0.0.0.0
 sudo systemctl restart mysql
 ```
 
-**확인 사항:**
+**Verification:**
 
 ```bash
-# Database 서버에서
-# 1. MySQL이 모든 인터페이스에서 리스닝하는지 확인
+# On Database server
+# 1. Verify MySQL is listening on all interfaces
 netstat -tulpn | grep 3306
-# 결과: 0.0.0.0:3306이어야 함 (127.0.0.1:3306이면 원격 접속 불가)
+# Result should be: 0.0.0.0:3306 (not 127.0.0.1:3306)
 
-# 2. MySQL 사용자 권한 확인
+# 2. Check MySQL user privileges
 mysql -u root -p
 SELECT user, host FROM mysql.user WHERE user='cloud';
-# host가 '%' 또는 Management Server IP여야 함
+# host should be '%' or Management Server IP
 
-# 3. 방화벽 확인
+# 3. Check firewall
 sudo ufw status
 sudo ufw allow 3306/tcp
 ```
 
 ---
 
-## SystemVM 문제
+## SystemVM Issues
 
-### SSVM (Secondary Storage VM) 인증서 오류
+### SSVM (Secondary Storage VM) Certificate Error
 
-**증상:**
-- SSVM이 정상적으로 시작되지 않음
-- CloudStack UI에서 SystemVM 상태가 "Down" 또는 "Error"
-- 로그에 SSL/TLS 인증서 관련 오류
+**Symptoms:**
+- SSVM fails to start properly
+- SystemVM status shows "Down" or "Error" in CloudStack UI
+- SSL/TLS certificate related errors in logs
 
-**해결 방법:**
+**Solution:**
 
 ```bash
-# SSVM 인증서 문제 해결 playbook
+# Run SSVM certificate fix playbook
 ansible-playbook -i inventory/hosts playbooks/troubleshoot-ssvm.yml
 ```
 
-**수동 해결:**
+**Manual Fix:**
 
 ```bash
-# Management Server에서
+# On Management Server
 ssh [management-server]
 
-# 1. SystemVM 상태 확인
-cloudmonkey list systemvms type=secondarystoragevm
+# 1. Check SystemVM status
+cmk list systemvms type=secondarystoragevm
 
-# 2. SSVM 재시작
-cloudmonkey stop systemvm id=[ssvm-id]
-cloudmonkey start systemvm id=[ssvm-id]
+# 2. Restart SSVM
+cmk stop systemvm id=[ssvm-id]
+cmk start systemvm id=[ssvm-id]
 
-# 3. SSVM 로그 확인
+# 3. Check SSVM logs
 tail -f /var/log/cloudstack/management/management-server.log | grep SSVM
 ```
 
-### SystemVM Template 재설치
 
-**증상:**
-- SystemVM이 생성되지 않음 (Starting -> Error 무한 반복)
-- Template이 손상되었거나 버전이 맞지 않음
 
-**해결 방법:**
+## CloudStack Service Issues
 
+
+### System VMs not starting
+
+> Sometimes System VMs (SSVM, CPVM) may not start properly after Zone configuration. the VMs will be created but remain in "Starting" state.
+
+Check System VM status:
 ```bash
-# 방법 1: force_template_install 옵션 사용
-vi inventory/group_vars/management/management.yml
-# force_template_install: true 로 설정
-
-ansible-playbook -i inventory/hosts playbooks/03-setup-management.yml
-
-# 방법 2: 재설치 playbook 사용
-ansible-playbook -i inventory/hosts playbooks/reinstall-systemvm.yml
+cmk list systemvms
+tail -f /var/log/cloudstack/management/management-server.log
 ```
 
-**수동 재설치:**
+System VMs may take 5-10 minutes to start after Zone enablement.
+
+If System VM issues persist, reinstall them using:
 
 ```bash
-# Management Server에서
+# On Management Server
 ssh [management-server]
 
-# 1. 기존 Template 삭제
+./reinstall-systemvm.sh
+
+# or
+
+
+# 1. Remove existing template
 /usr/share/cloudstack-common/scripts/storage/secondary/cloud-install-sys-tmplt \
   -m /mnt/secondary \
   -f /path/to/systemvmtemplate.qcow2.bz2 \
@@ -140,220 +144,178 @@ ssh [management-server]
   -r cloud \
   -d cloud
 
-# 2. CloudStack Management 재시작
+# 2. Restart CloudStack Management
 systemctl restart cloudstack-management
 ```
 
----
+### Cannot find Shared Network Service Offering and Isolated Network Service Offering
 
-## 네트워크 문제
+If you cannot find the network service offerings when creating networks, ensure that the network provider `virtualrouter` is enabled.   
 
-### 네트워크 브리지 설정 실패
-
-**증상:**
-- KVM Host에서 브리지가 생성되지 않음
-- VM이 네트워크에 연결되지 않음
-
-**해결 방법:**
+Enable Virtual Router network provider:
 
 ```bash
-# 네트워크 브리지 재설정
-ansible-playbook -i inventory/hosts playbooks/00-setup-network.yml
+cmk update networkoffering id=$(cmk list networkofferings name="DefaultIsolatedNetworkOffering" filter=name,id --quiet) state=Enabled
+cmk update networkoffering id=$(cmk list networkofferings name="DefaultSharedNetworkOffering" filter=name,id --quiet) state=Enabled
+``` 
+### VM Image is not started to download
 
-# 브리지 상태 확인
-ansible kvm-hosts -i inventory/hosts -m shell -a "ip addr show"
-ansible kvm-hosts -i inventory/hosts -m shell -a "brctl show"
-```
+All of the managing template image and ISO images are downloaded on Secondary StorageVM (SSVM). You should check the SSVM routing and network connectivity to the external network.
 
-**수동 확인:**
+**Problem**: SSVM configure routing tables with Zone Configuration. However, DNS connection is routed on Management Network which may not have external network access.
 
-```bash
-# KVM Host에서
-ssh [kvm-host]
+**Solution 1: Remove wrong route configuration on SSVM (not recommended)**
 
-# 1. 브리지 상태 확인
-ip addr show cloudbr0
-ip addr show cloudbr1
-
-# 2. Netplan 설정 확인 (Ubuntu 24.04)
-cat /etc/netplan/01-netcfg.yaml
-
-# 3. 네트워크 재적용
-netplan apply
-
-# 4. libvirt 네트워크 확인
-virsh net-list --all
-```
-
----
-
-## Ansible 문제
-
-### Playbook 실행 중 오류
-
-**증상:**
-- Task 실행 중 특정 단계에서 실패
-
-**해결 방법:**
+Manually fix routing on SSVM, but this will be reset on SSVM reboot:
 
 ```bash
-# 1. 상세 로그로 실행
-ansible-playbook -i inventory/hosts playbooks/site.yml -vvv
+# SSH to SSVM
+ssh USER@COMPUTE-NODE-IP
 
-# 2. 특정 task부터 실행 (실패한 task 다음부터)
-ansible-playbook -i inventory/hosts playbooks/site.yml --start-at-task="Task Name"
+# Find SSVM (s-[0-9]-VM)
+virsh list 
 
-# 3. 특정 호스트만 실행
-ansible-playbook -i inventory/hosts playbooks/site.yml --limit management
+# Access SSVM console
+# username: root
+# password: password
+virsh console <ssvm-name>
 
-# 4. Dry-run 모드로 테스트
-ansible-playbook -i inventory/hosts playbooks/site.yml --check
+# Check current routes
+ip route
+
+# remove wrong route via Management Network such as...
+# 8.8.8.8 via <management-network-gateway-ip>
+# 8.8.4.4 via <management-network-gateway-ip>
+
+# Remove incorrect route and add correct one
+ip route del default
+ip route add default via <correct-gateway-ip>
 ```
 
-### Vault 비밀번호 관련 오류
+**Solution 2: Configure SNAT rule (recommended)**
 
-**증상:**
-- "Vault password required" 오류
+Configure SNAT on the Pod Gateway node to allow Management Network access to external network through Public Network.
 
-**해결 방법:**
+SSVM automatically uses the Pod Network gateway defined in your `zone-config.yml` (under `pod.gateway`). By configuring SNAT on that gateway node, SSVM can reach the internet:
 
 ```bash
-# Vault 비밀번호와 함께 실행
-ansible-playbook -i inventory/hosts playbooks/site.yml --ask-vault-pass
+# On the Pod Gateway node (matching pod.gateway IP in zone-config.yml)
+# Assuming:
+# - Pod/Management Network: 10.15.0.0/24
+# - Pod Gateway: 10.15.0.1
+# - Public Network interface: eth1
 
-# Vault 비밀번호 파일 사용
-echo "your_vault_password" > ~/.vault_pass
-chmod 600 ~/.vault_pass
-ansible-playbook -i inventory/hosts playbooks/site.yml --vault-password-file ~/.vault_pass
+# 1. Enable IP forwarding
+echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
+sysctl -p
+
+# 2. Add SNAT rule (replace <public-interface> with actual interface name)
+iptables -t nat -A POSTROUTING -s 10.15.0.0/24 -o eth1 -j MASQUERADE
+
+# 3. Make persistent
+apt-get install iptables-persistent
+netfilter-persistent save
+
+# 4. Verify NAT rule
+iptables -t nat -L POSTROUTING -n -v
 ```
 
----
-
-## CloudStack 서비스 문제
-
-### Management Server 시작 실패
-
-**증상:**
-- `systemctl status cloudstack-management` 상태가 "failed"
-
-**해결 방법:**
+**Verify SSVM connectivity:**
 
 ```bash
-# Management Server에서
-ssh [management-server]
+# List SSVM
+cmk list systemvms systemvmtype=secondarystoragevm
 
-# 1. 로그 확인
-tail -f /var/log/cloudstack/management/management-server.log
+# SSH to SSVM
+ssh -i /var/cloudstack/management/.ssh/id_rsa -p 3922 root@<ssvm-linklocal-ip>
 
-# 2. Database 연결 확인
-mysql -h [database-server] -u cloud -p[password] cloud
-
-# 3. 포트 사용 확인
-netstat -tulpn | grep 8080
-
-# 4. 서비스 재시작
-systemctl restart cloudstack-management
+# On SSVM, verify gateway and connectivity
+ip route show | grep default
+ping -c 3 8.8.8.8
+nslookup download.cloudstack.org
 ```
 
-### KVM Host Agent 연결 실패
+> **Note**: Replace network CIDRs and interface names with your actual configuration.
 
-**증상:**
-- CloudStack UI에서 Host 상태가 "Disconnected"
 
-**해결 방법:**
+### VMs in Isolated Network cannot communicate with each other
+
+If VMs in the same isolated network cannot communicate with each other, this is usually caused by MTU (Maximum Transmission Unit) mismatch.
+
+**Problem**: When using VXLAN or other overlay networks, the effective MTU is reduced due to encapsulation overhead. If the Virtual Router's MTU is too large, packets will be fragmented or dropped.
+
+Check with ping tests from a VM to another VM in the same isolated network:
+```
+ping -s 1500 <VM-IP>          # Standard MTU 1500
+ping -s 1450 <VM-IP>          # Reduced MTU 1450
+ping -s 1400 <VM-IP>          # Further reduced MTU 1400
+```
+
+> Detailed reason summaried on this page [Selective Packet Loss Over VXLAN (fat packet dropped)](https://constantpinger.home.blog/2022/09/27/selective-packet-loss-over-vxlan-fat-packets-dropped/)
+
+**Solution**: Set the Virtual Router's MTU to `(smallest MTU in network path) - 50`
+
+For example, if your physical network uses MTU 1500:
+- VXLAN adds ~50 bytes overhead
+- Safe Virtual Router MTU = 1500 - 50 = **1450**
+
+**How to configure:**
+
+Set zone-level MTU configurations using CloudMonkey:
 
 ```bash
-# KVM Host에서
-ssh [kvm-host]
+# Set maximum MTU for Virtual Router public interfaces
+cmk update configuration name=vr.public.interface.max.mtu value=1450
 
-# 1. Agent 상태 확인
-systemctl status cloudstack-agent
-
-# 2. Agent 로그 확인
-tail -f /var/log/cloudstack/agent/agent.log
-
-# 3. libvirt 상태 확인
-systemctl status libvirtd
-
-# 4. Management Server 연결 확인
-telnet [management-server] 8250
-
-# 5. Agent 재시작
-systemctl restart cloudstack-agent
+# Set maximum MTU for Virtual Router private interfaces
+cmk update configuration name=vr.private.interface.max.mtu value=1450
 ```
 
----
-
-## NFS Storage 문제
-
-### Secondary Storage 마운트 실패
-
-**증상:**
-- Management Server에서 Secondary Storage 마운트 불가
-- "mount.nfs: access denied" 오류
-
-**해결 방법:**
+After changing these settings, restart Virtual Routers to apply the new MTU:
 
 ```bash
-# NFS 서버에서
-ssh [nfs-server]
+# List Virtual Routers
+cmk list routers listall=true
 
-# 1. NFS Export 확인
-cat /etc/exports
-# /export/secondary *(rw,async,no_root_squash,no_subtree_check)
-
-# 2. Export 재적용
-exportfs -ra
-
-# 3. NFS 서비스 상태 확인
-systemctl status nfs-server
-
-# 4. 방화벽 확인
-sudo ufw allow from [management-network] to any port nfs
+# Restart each router
+cmk rebootrouter id=<router-id>
 ```
 
-**Management Server에서 테스트:**
+> **Note**: These zone-level configurations control the maximum allowed MTU values for public and private interfaces on Virtual Routers. Common MTU values:
+> - Standard network: MTU 1500 → Virtual Router MTU **1450**
+> - Jumbo frames (9000): MTU 9000 → Virtual Router MTU **8950**
+> - Always test connectivity after MTU changes
 
-```bash
-ssh [management-server]
 
-# 수동 마운트 테스트
-mount -t nfs [nfs-server]:/export/secondary /mnt/test
-df -h | grep /mnt/test
-umount /mnt/test
-```
-
----
-
-## 로그 파일 위치
+## Log File Locations
 
 ### Management Server
 
 ```
 /var/log/cloudstack/management/
-├── management-server.log          # 메인 로그
-├── api-server.log                 # API 요청 로그
-└── cloudstack-management.log      # 시스템 로그
+├── management-server.log          # Main log
+├── api-server.log                 # API request log
+└── cloudstack-management.log      # System log
 ```
 
 ### KVM Host
 
 ```
 /var/log/cloudstack/agent/
-└── agent.log                      # Agent 로그
+└── agent.log                      # Agent log
 
 /var/log/libvirt/
-└── libvirtd.log                   # libvirt 로그
+└── libvirtd.log                   # libvirt log
 ```
 
 ### Database
 
 ```
 /var/log/mysql/
-└── error.log                      # MySQL 에러 로그
+└── error.log                      # MySQL error log
 ```
 
-## 참고
+## References
 
-- 설치 가이드: [installation.md](installation.md)
-- 프로젝트 개요: [../README.md](../README.md)
+- Installation Guide: [installation.md](installation.md)
+- Project Overview: [../README.md](../README.md)

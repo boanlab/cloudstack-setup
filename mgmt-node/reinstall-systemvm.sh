@@ -25,7 +25,7 @@ log_error() {
 print_header() {
     echo ""
     echo "╔════════════════════════════════════════════════════════════╗"
-    echo "║       CloudStack SystemVM Template Reinstaller            ║"
+    echo "║         CloudStack SystemVM Template Reinstaller           ║"
     echo "╚════════════════════════════════════════════════════════════╝"
     echo ""
 }

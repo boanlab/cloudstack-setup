@@ -1,5 +1,9 @@
 # CloudStack Ansible Automation
-
+<!-->
+- 어떤 스크립트
+    - 설명 
+    - 사용 명령어
+-->
 CloudStack 4.19 인프라를 자동으로 배포하는 Ansible 프로젝트입니다.
 
 ## 빠른 시작
