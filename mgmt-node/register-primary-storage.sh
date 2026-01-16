@@ -37,12 +37,6 @@ log_error() {
 check_cloudmonkey() {
     if ! command -v cmk &> /dev/null; then
         log_error "CloudMonkey (cmk) is not installed!"
-        echo ""
-        echo "Install CloudMonkey:"
-        echo "  pip3 install cloudmonkey"
-        echo ""
-        echo "Or using apt:"
-        echo "  sudo apt-get install cloudmonkey"
         exit 1
     fi
     

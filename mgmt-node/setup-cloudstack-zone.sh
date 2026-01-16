@@ -288,9 +288,61 @@ configure_cloudmonkey() {
     cmk set secretkey "$CLOUDSTACK_SECRET_KEY"
     cmk set display json
     cmk set output json
+    cmk set async false
     cmk sync
     
     log_info "CloudMonkey configured successfully"
+}
+
+# Wait for async job to complete
+wait_for_job() {
+    local jobid="$1"
+    local max_wait="${2:-300}"  # Default 5 minutes
+    local interval=5
+    local elapsed=0
+    
+    if [[ -z "$jobid" ]]; then
+        log_error "No job ID provided to wait_for_job"
+        return 1
+    fi
+    
+    log_info "Waiting for job $jobid to complete..."
+    
+    while [[ $elapsed -lt $max_wait ]]; do
+        local result=$(cmk query asyncjobresult jobid="$jobid" 2>/dev/null)
+        local status=$(echo "$result" | jq -r '.queryasyncjobresultresponse.jobstatus // 0')
+        
+        case $status in
+            0)
+                # Job still in progress
+                echo -n "."
+                sleep $interval
+                elapsed=$((elapsed + interval))
+                ;;
+            1)
+                # Job completed successfully
+                echo ""
+                log_info "✓ Job completed successfully"
+                return 0
+                ;;
+            2)
+                # Job failed
+                echo ""
+                local error=$(echo "$result" | jq -r '.queryasyncjobresultresponse.jobresult.errortext // "Unknown error"')
+                log_error "Job failed: $error"
+                return 1
+                ;;
+            *)
+                echo ""
+                log_warn "Unknown job status: $status"
+                return 1
+                ;;
+        esac
+    done
+    
+    echo ""
+    log_error "Job timed out after ${max_wait}s"
+    return 1
 }
 
 # Helper function to get ID from name
@@ -540,7 +592,7 @@ add_hosts() {
             continue
         fi
         
-        cmk add host \
+        local result=$(cmk add host \
             zoneid="$ZONE_ID" \
             podid="$POD_ID" \
             clusterid="$CLUSTER_ID" \
@@ -548,17 +600,47 @@ add_hosts() {
             url="http://$host_ip" \
             username="$host_username" \
             password="$host_password" \
-            hosttags="" 2>&1 | grep -v "already in the database" || true
+            hosttags="" 2>&1)
         
-        log_info "Host $host_name added successfully"
-    done
-}
-
-add_primary_storage() {
-    log_step "Adding Primary Storage: $PRIMARY_STORAGE_NAME"
+        if echo "$result" | grep -q "already in the database"; then
+            log_warn "Host $host_name already exists"
+            continue
+        fi
+        
+        # Extract job ID if async
+        local jobid=$(echo "$result" | jq -r '.addhostresponse.jobid // empty' 2>/dev/null)
+        if [[ -n "$jobid" ]]; then
+            wait_for_job "$jobid" 300 || {
+                log_error "Failed to add host $host_name"
+                continue
+            }
+        fi
+        
+    local result=$(cmk create storagepool \
+        name="$PRIMARY_STORAGE_NAME" \
+        zoneid="$ZONE_ID" \
+        podid="$POD_ID" \
+        clusterid="$CLUSTER_ID" \
+        url="nfs://$PRIMARY_STORAGE_SERVER$PRIMARY_STORAGE_PATH" \
+        scope="$PRIMARY_STORAGE_SCOPE" 2>&1)
     
-    # Check if storage already exists
-    local existing_storage=$(cmk list storagepools name="$PRIMARY_STORAGE_NAME" 2>&1 || true)
+    # Check for errors
+    if echo "$result" | jq -e '.createstoragepool.errortext' &>/dev/null; then
+        local error=$(echo "$result" | jq -r '.createstoragepool.errortext')
+        log_error "Failed to add primary storage: $error"
+        return 1
+    fi
+    
+    # Extract job ID if async
+    local jobid=$(echo "$result" | jq -r '.createstoragepool.jobid // empty' 2>/dev/null)
+    if [[ -n "$jobid" ]]; then
+        wait_for_job "$jobid" 300 || {
+            log_error "Failed to add primary storage"
+            return 1
+        }
+    fi
+    
+    log_info "✓ ting_storage=$(cmk list storagepools name="$PRIMARY_STORAGE_NAME" 2>&1 || true)
     if echo "$existing_storage" | grep -q "$PRIMARY_STORAGE_NAME"; then
         log_warn "Primary Storage '$PRIMARY_STORAGE_NAME' already exists"
         return 0
@@ -569,13 +651,29 @@ add_primary_storage() {
         zoneid="$ZONE_ID" \
         podid="$POD_ID" \
         clusterid="$CLUSTER_ID" \
-        url="nfs://$PRIMARY_STORAGE_SERVER$PRIMARY_STORAGE_PATH" \
-        scope="$PRIMARY_STORAGE_SCOPE"
+    local result=$(cmk add imagestore \
+        name="$SECONDARY_STORAGE_NAME" \
+        provider="$SECONDARY_STORAGE_PROVIDER" \
+        zoneid="$ZONE_ID" \
+        url="nfs://$SECONDARY_STORAGE_SERVER$SECONDARY_STORAGE_PATH" 2>&1)
     
-    log_info "Primary Storage added: $PRIMARY_STORAGE_NAME"
-}
-
-add_secondary_storage() {
+    # Check for errors
+    if echo "$result" | jq -e '.addimagestoreresponse.errortext' &>/dev/null; then
+        local error=$(echo "$result" | jq -r '.addimagestoreresponse.errortext')
+        log_error "Failed to add secondary storage: $error"
+        return 1
+    fi
+    
+    # Extract job ID if async
+    local jobid=$(echo "$result" | jq -r '.addimagestoreresponse.jobid // empty' 2>/dev/null)
+    if [[ -n "$jobid" ]]; then
+        wait_for_job "$jobid" 300 || {
+            log_error "Failed to add secondary storage"
+            return 1
+        }
+    fi
+    
+    log_info "✓ storage() {
     log_step "Adding Secondary Storage: $SECONDARY_STORAGE_NAME"
     
     # Check if storage already exists

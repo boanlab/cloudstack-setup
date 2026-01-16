@@ -29,9 +29,7 @@ ansible management -i inventory/hosts -m ping -vvv
 - Verify SSH service is running on target server: `systemctl status sshd`
 - Check root login permission: `PermitRootLogin yes` in `/etc/ssh/sshd_config`
 - Also, Check the root password is set correctly if using password authentication.
-- Verify SSH port (22) is allowed in firewall: `ufw status` or `firewall-cmd --list-all`
-
----
+- Verify SSH port (22) is allowed in firewall: `ufw status` or `firewall-cmd --list-all` (Ubuntu Distro. may not activate firewall by default)
 
 ## Database Issues
 
@@ -70,41 +68,6 @@ SELECT user, host FROM mysql.user WHERE user='cloud';
 # 3. Check firewall
 sudo ufw status
 sudo ufw allow 3306/tcp
-```
-
----
-
-## SystemVM Issues
-
-### SSVM (Secondary Storage VM) Certificate Error
-
-**Symptoms:**
-- SSVM fails to start properly
-- SystemVM status shows "Down" or "Error" in CloudStack UI
-- SSL/TLS certificate related errors in logs
-
-**Solution:**
-
-```bash
-# Run SSVM certificate fix playbook
-ansible-playbook -i inventory/hosts playbooks/troubleshoot-ssvm.yml
-```
-
-**Manual Fix:**
-
-```bash
-# On Management Server
-ssh [management-server]
-
-# 1. Check SystemVM status
-cmk list systemvms type=secondarystoragevm
-
-# 2. Restart SSVM
-cmk stop systemvm id=[ssvm-id]
-cmk start systemvm id=[ssvm-id]
-
-# 3. Check SSVM logs
-tail -f /var/log/cloudstack/management/management-server.log | grep SSVM
 ```
 
 
