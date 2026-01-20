@@ -257,7 +257,7 @@ vi inventory/group_vars/all/all.yml
 
 Set network CIDRs, gateway, and storage paths.
 
-> Please refer to the comments in each file and [OPTIONS.md](OPTIONS.md) for detailed configuration options.
+> Please refer to the comments in each file and [OPTIONS.md](../cloudstack/OPTIONS.md) for detailed configuration options.
 ---
 
 ### 4. Copy SSH Keys
