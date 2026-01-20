@@ -127,7 +127,9 @@ To build a CloudStack environment, the following hardware, software, and network
 | OS | Ubuntu 24.04 LTS | Ubuntu 24.04 LTS |
 
 > **Important**: KVM Host must have **CPU virtualization support** (Intel VT-x or AMD-V) enabled.
-
+  ```bash
+  grep -E '(vmx|svm)' /proc/cpuinfo
+  ```
 ### Network Requirements
 CloudStack Advanced Zone requires **at least 2 physically separated networks**:
 
