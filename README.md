@@ -11,7 +11,7 @@ The automation handles complete installation and configuration of Management Ser
 ### Project Documentation
 - [Ansible CloudStack Deployment Guide](./cloudstack/README.md) - CloudStack infrastructure installation guide
 - [Installation Guide](./docs/installation.md) - Step-by-step installation guide for deploying CloudStack using this Ansible project.
-- [Management Setup Guide](./mgmt-node/SETUP-GUIDE.md) - Instructions for configuring CloudStack Zones after installation.
+- [Management Setup Guide](./docs/setup-guide.md) - Instructions for configuring CloudStack Zones after installation.
 - [Troubleshooting Guide](./docs/troubleshooting.md) - Common issues and solutions during installation and operation.
 
 ### CloudStack Official Documentation
