@@ -31,7 +31,7 @@ After completing the infrastructure installation using Ansible, use these tools 
 - **[register-secondary-storage.sh](register-secondary-storage.sh)**: Add Secondary Storage to existing Zone
 - **[reinstall-systemvm.sh](reinstall-systemvm.sh)**: Reinstall System VMs (SSVM, CPVM) if System VMs have issues
 
-> Please Refer **[SETUP-GUIDE.md](SETUP-GUIDE.md)** to get detailed instructions on using these tools.
+> Please Refer **[setup-guide.md](../docs/setup-guide.md)** to get detailed instructions on using these tools.
 
 ## Quick Start
 
