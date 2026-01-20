@@ -80,7 +80,7 @@ To build a CloudStack environment, the following hardware, software, and network
 | Item | Version/Spec |
 |------|--------------|
 | CloudStack | 4.19.3.0 |
-| OS | Ubuntu 24.04 LTS (Noble) |
+| OS | <= Ubuntu 22.04 LTS (Noble) |
 | Database | MySQL 8.0 |
 | Java | OpenJDK 11 |
 | Hypervisor | KVM/QEMU |
@@ -97,7 +97,6 @@ To build a CloudStack environment, the following hardware, software, and network
 | RAM | 4 GB | 8 GB |
 | Disk | 50 GB | 100 GB (SSD) |
 | Network | **2 NIC** (Management + Public) | **2 NIC** (Management + Public) |
-| OS | Ubuntu 24.04 LTS | Ubuntu 24.04 LTS |
 
 #### Database Node
 | Item | Minimum | Recommended |
@@ -106,7 +105,7 @@ To build a CloudStack environment, the following hardware, software, and network
 | RAM | 4 GB | 8 GB |
 | Disk | 50 GB | 200 GB (SSD) |
 | Network | **2 NIC** (Management + Public) | **2 NIC** (Management + Public) |
-| OS | Ubuntu 24.04 LTS | Ubuntu 24.04 LTS |
+
 
 #### Storage Node (NFS)
 | Item | Minimum | Recommended |
@@ -115,7 +114,7 @@ To build a CloudStack environment, the following hardware, software, and network
 | RAM | 4 GB | 8 GB |
 | Disk | 200 GB | 500 GB+ (SSD) |
 | Network | 1 NIC (Public) | 1 NIC (Public) |
-| OS | Ubuntu 24.04 LTS | Ubuntu 24.04 LTS |
+
 
 #### KVM Host (Compute Node)
 | Item | Minimum | Recommended |
@@ -124,11 +123,10 @@ To build a CloudStack environment, the following hardware, software, and network
 | RAM | 8 GB | 16 GB+ |
 | Disk | 100 GB | 500 GB+ (SSD) |
 | Network | **2 NIC** (Management + Public) | **2 NIC** (Management + Public) |
-| OS | Ubuntu 24.04 LTS | Ubuntu 24.04 LTS |
 
 > **Important**: KVM Host must have **CPU virtualization support** (Intel VT-x or AMD-V) enabled.
   ```bash
-  grep -E '(vmx|svm)' /proc/cpuinfo
+ egrep -c 'vmx' /proc/cpuinfo
   ```
 ### Network Requirements
 CloudStack Advanced Zone requires **at least 2 physically separated networks**:
@@ -181,12 +179,22 @@ CloudStack Advanced Zone requires **at least 2 physically separated networks**:
 
 ## Installation Steps
 
-### 1. Inventory Configuration
+### 1. Setup Ansible Environment
 
-#### Create hosts File
+#### Install Ansible on Local Machine
 
 ```bash
 cd cloudstack/
+./setup-ansible-controller.sh
+```
+
+### 2. Configure Inventory Files
+
+After the Ansible controller setup, configure the inventory and variables:
+
+**Create and edit inventory file:**
+
+```bash
 cp inventory/hosts.example inventory/hosts
 vi inventory/hosts
 ```
@@ -207,39 +215,12 @@ kvm-host-01 ansible_host=10.10.0.21        # KVM Host 1 IP
 ansible_user=root                           # SSH user (root or sudo user)
 ```
 
+Update the IP addresses and ansible_user according to your environment.
+
 > **Important**: 
 > - **When using root user**: Root account login must be allowed in SSH (`PermitRootLogin yes` in `/etc/ssh/sshd_config`)
 > - **When using sudo user**: Set `ansible_user` to a user with sudo privileges and add `--ask-become-pass` option when running playbook
 
----
-
-### 2. Prepare Ansible Controller
-
-Run the setup script to install Ansible and configure the SSH environment:
-
-```bash
-cd cloudstack/
-sudo ./setup-ansible-controller.sh
-```
-
-This script will:
-- Install Ansible and required packages (python3-pip, python3-netaddr, sshpass)
-- Configure SSH settings for passwordless connection
-
----
-
-### 3. Configure Inventory Files
-
-After the Ansible controller setup, configure the inventory and variables:
-
-**Create and edit inventory file:**
-
-```bash
-cp inventory/hosts.example inventory/hosts
-vi inventory/hosts
-```
-
-Update the IP addresses and ansible_user according to your environment.
 
 **Configure passwords:**
 
@@ -251,16 +232,18 @@ Set passwords for root, MySQL, and CloudStack.
 
 **Configure network settings:**
 
+Set network CIDRs, gateway, and storage paths according to the [Network Requirements](###-Network-Requirements) section for CIDR examples.
+
 ```bash
 vi inventory/group_vars/all/all.yml
 ```
 
-Set network CIDRs, gateway, and storage paths.
+> **Important**: Bridge names will be used as Traffic Labels during Zone configuration.
 
 > Please refer to the comments in each file and [OPTIONS.md](../cloudstack/OPTIONS.md) for detailed configuration options.
 ---
 
-### 4. Copy SSH Keys
+### 3. Copy SSH Keys
 
 Run the SSH key distribution script:
 
@@ -279,25 +262,9 @@ This script will:
 # Ansible connection test
 ansible all -i inventory/hosts -m ping
 ```
-
 ---
 
-### 5. Network CIDR Configuration
-
-Modify the network ranges in `inventory/group_vars/all/all.yml` to match your actual environment.
-
-```bash
-vi inventory/group_vars/all/all.yml
-```
-> Please Refer the [Network Requirements](###-Network-Requirements) section for CIDR examples.
-
-
-> **Important**: Bridge names will be used as Traffic Labels during Zone configuration.
-
-> Also, Check [OPTIONS.md](../cloudstack/OPTIONS.md) for detailed configuration options.
----
-
-### 6. CloudStack Deployment
+### 4. CloudStack Deployment
 
 #### Full Automated Installation (Recommended)
 
@@ -332,7 +299,7 @@ ansible-playbook -i inventory/hosts playbooks/04-setup-kvm-hosts.yml
 
 ---
 
-### 7. Installation Verification
+### 5. Installation Verification
 
 #### Access Management Server
 
