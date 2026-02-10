@@ -119,6 +119,9 @@ copy_keys() {
     log_warn "You will be prompted for password for each server"
     echo ""
     
+    # Temporarily disable exit on error for this function
+    set +e
+    
     local success_count=0
     local fail_count=0
     local failed_hosts=()
@@ -126,7 +129,8 @@ copy_keys() {
     for host in $HOSTS; do
         log_step "Copying key to $ANSIBLE_USER@$host..."
         
-        if sudo -u "$ACTUAL_USER" ssh-copy-id -i "$ACTUAL_HOME/.ssh/id_rsa.pub" $ANSIBLE_USER@$host 2>/dev/null; then
+        # Run ssh-copy-id with proper options
+        if sudo -u "$ACTUAL_USER" ssh-copy-id -o StrictHostKeyChecking=no -i "$ACTUAL_HOME/.ssh/id_rsa.pub" $ANSIBLE_USER@$host; then
             echo -e "${GREEN}✓${NC} Key copied to $host"
             ((success_count++))
         else
@@ -158,6 +162,9 @@ copy_keys() {
         done
     fi
     echo ""
+    
+    # Re-enable exit on error
+    set -e
 }
 
 print_next_steps() {
